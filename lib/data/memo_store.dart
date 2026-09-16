@@ -29,6 +29,7 @@ class MemoStore extends ChangeNotifier {
   /// 이 기기에 이미 들어온 기본 카드 묶음의 수. 예전 파일에는 없으므로
   /// 첫 묶음만 받은 것으로 본다.
   int _seededSets = seedSets;
+  int _fixups = fixups;
   String _deviceId = '';
   DateTime? _lastBackupAt;
 
@@ -76,6 +77,10 @@ class MemoStore extends ChangeNotifier {
         _seed(from: _seededSets);
         _seededSets = seedSets;
       }
+      if (_fixups < fixups) {
+        _applyFixups();
+        _fixups = fixups;
+      }
     } else {
       _seed();
     }
@@ -104,6 +109,7 @@ class MemoStore extends ChangeNotifier {
     final settings = (j['settings'] as Map?)?.cast<String, dynamic>() ?? {};
     _backgroundKey = (settings['backgroundKey'] ?? 'paper') as String;
     _seededSets = (settings['seedSets'] ?? 1) as int;
+    _fixups = (settings['fixups'] ?? 0) as int;
     _deviceId = (j['deviceId'] ?? '') as String;
     final backup = settings['lastBackupAt'];
     _lastBackupAt = backup == null ? null : DateTime.tryParse(backup as String);
@@ -112,6 +118,10 @@ class MemoStore extends ChangeNotifier {
   /// 지금까지 넣어 둔 기본 카드 묶음의 수. 이미 쓰던 기기에도 새로 추가된
   /// 묶음이 한 번은 들어오도록 [load] 에서 이 값을 비교한다.
   static const seedSets = 2;
+
+  /// 이미 만들어 둔 카드의 글귀를 손본 횟수. 새 값을 올리면 쓰던 기기에서도
+  /// [_applyFixups] 가 한 번 돈다.
+  static const fixups = 1;
 
   /// 첫 실행에 놓이는 열두 장. 컨셉아트 두 장의 구성 그대로다.
   void _seed({int from = 0}) {
@@ -130,7 +140,7 @@ class MemoStore extends ChangeNotifier {
         >[
           (
             title: '오늘의 메모',
-            subtitle: '작은 생각을 적어두기',
+            subtitle: '',
             color: 'blossom',
             cat: 'mochi',
             badge: 'heart',
@@ -272,6 +282,14 @@ class MemoStore extends ChangeNotifier {
     }
   }
 
+  /// 기본 카드의 글귀만 손본다. 직접 쓴 글은 건드리지 않는다.
+  void _applyFixups() {
+    for (final board in _boards) {
+      if (board.subtitle == '작은 생각을 적어두기') board.subtitle = '';
+      if (board.title == '잠깐 쉬어가기') board.subtitle = '천천히 해도 괜찮아';
+    }
+  }
+
   /// 파일을 건드리지 않고 기본 카드만 채운다. 렌더링 검증용.
   @visibleForTesting
   void debugSeed() {
@@ -397,6 +415,7 @@ class MemoStore extends ChangeNotifier {
     'settings': {
       'backgroundKey': _backgroundKey,
       'seedSets': _seededSets,
+      'fixups': _fixups,
       'lastBackupAt': _lastBackupAt?.toIso8601String(),
     },
     'boards': _boards.map((b) => b.toJson()).toList(),

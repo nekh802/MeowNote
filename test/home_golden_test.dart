@@ -74,7 +74,8 @@ void main() {
     expect(find.byTooltip('줄 추가'), findsOneWidget);
     await tester.tap(find.widgetWithText(ChoiceChip, '오늘의 메모'));
     await tester.pumpAndSettle();
-    expect(find.text('오늘의 작은 행복'), findsOneWidget);
+    // 칸에는 지우기를 알아채려고 세워 둔 보이지 않는 글자가 앞에 붙는다.
+    expect(find.textContaining('오늘의 작은 행복'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await expectLater(
       find.byType(HomeScreen),

@@ -219,6 +219,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      // 창이 길어져도 아이폰 위쪽 카메라 자리는 비워 둔다.
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _BoardSettingsSheet(board: board),
     );
@@ -404,6 +406,9 @@ class _BoardCardState extends State<_BoardCard> {
       _ => 110.0,
     };
     final minRules = board.pose == CatPose.watermark ? 2 : 4;
+    // '적어보기'는 마지막으로 쓴 글 바로 아래 한 줄에만 둔다.
+    final hintRow =
+        widget.entries.lastIndexWhere((e) => e.text.trim().isNotEmpty) + 1;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
@@ -451,7 +456,8 @@ class _BoardCardState extends State<_BoardCard> {
                           child: CatFace(
                             spec: cat,
                             width: 224,
-                            opacity: 1,
+                            // 카드 글씨를 가리지 않게 절반만 비친다.
+                            opacity: .5,
                             tint: p.tint,
                           ),
                         ),
@@ -489,39 +495,38 @@ class _BoardCardState extends State<_BoardCard> {
                         children: [
                           Padding(
                             padding: EdgeInsets.only(right: headGap),
+                            // Spacer 를 쓰면 남는 자리를 제목과 절반씩
+                            // 나눠 가져 제목이 먼저 줄바꿈된다. 제목 묶음에
+                            // 먼저 자리를 주고 남는 만큼만 벌린다.
                             child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Flexible(
                                   child: GestureDetector(
                                     onTap: widget.onOpenSettings,
                                     behavior: HitTestBehavior.opaque,
-                                    child:
-                                        OriginalLabel.regions.containsKey(
-                                          board.title,
-                                        )
-                                        ? FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            child: OriginalLabel(
-                                              text: board.title,
-                                              height: 31,
-                                            ),
-                                          )
-                                        // 자리가 좁으면 줄여서라도 제목은
-                                        // 끝까지 보여 준다.
-                                        : FittedBox(
-                                            fit: BoxFit.scaleDown,
-                                            alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              board.title,
-                                              maxLines: 1,
-                                              style: _round(24, p.ink),
-                                            ),
+                                    // 제목은 카드마다 같은 크기로 둔다. 길면
+                                    // 줄여 쓰지 않고 줄을 바꿔 끝까지 보여 준다.
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            board.title,
+                                            maxLines: 2,
+                                            style: _round(24, p.ink),
                                           ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Icon(
+                                          badge.icon,
+                                          size: 17,
+                                          color: badge.color,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Icon(badge.icon, size: 17, color: badge.color),
-                                const Spacer(),
                                 AnimatedOpacity(
                                   opacity: _hover || touch ? 1 : 0,
                                   duration: const Duration(milliseconds: 140),
@@ -557,13 +562,15 @@ class _BoardCardState extends State<_BoardCard> {
                               ),
                           ],
                           const SizedBox(height: 14),
-                          for (final e in widget.entries)
+                          for (var i = 0; i < widget.entries.length; i++)
                             _EntryRow(
-                              key: ValueKey(e.id),
-                              entry: e,
+                              key: ValueKey(widget.entries[i].id),
+                              entry: widget.entries[i],
                               board: board,
                               palette: p,
-                              autofocus: e.id == widget.focusEntryId,
+                              autofocus:
+                                  widget.entries[i].id == widget.focusEntryId,
+                              showHint: i == hintRow,
                               onSubmit: widget.onAdd,
                             ),
                           // 컨셉아트처럼 빈 줄도 괘선으로 남겨 둔다.
@@ -617,7 +624,7 @@ class _BoardCardState extends State<_BoardCard> {
 
 /// 카드 오른쪽 위 모서리에 걸터앉는 고양이 자리. 제목 줄이 그 밑으로
 /// 들어가지 않도록 카드 본문에서도 같은 값을 본다.
-const _peekTopCat = (width: 132.0, right: 12.0);
+const _peekTopCat = (width: 116.0, right: 12.0);
 
 /// 카드 안쪽의 옅은 모눈.
 class _GridPainter extends CustomPainter {
@@ -732,6 +739,7 @@ class _EntryRow extends StatefulWidget {
     required this.board,
     required this.palette,
     required this.autofocus,
+    required this.showHint,
     required this.onSubmit,
   });
 
@@ -739,6 +747,9 @@ class _EntryRow extends StatefulWidget {
   final Board board;
   final CardPalette palette;
   final bool autofocus;
+
+  /// 마지막 글 바로 아래 한 줄에만 '적어보기'를 띄운다.
+  final bool showHint;
   final VoidCallback onSubmit;
 
   @override
@@ -746,8 +757,13 @@ class _EntryRow extends StatefulWidget {
 }
 
 class _EntryRowState extends State<_EntryRow> {
+  /// 빈 칸에서 지우기를 누른 걸 알아채려고 앞에 세워 두는 보이지 않는 글자.
+  /// 칸이 정말 비어 있으면 지우기를 눌러도 아무 일이 일어나지 않아
+  /// 윗 줄로 갈 때를 알 수 없다.
+  static const _mark = '\u200b';
+
   late final TextEditingController _c = TextEditingController(
-    text: widget.entry.text,
+    text: _mark + widget.entry.text,
   );
   bool _hover = false;
 
@@ -757,8 +773,37 @@ class _EntryRowState extends State<_EntryRow> {
     super.dispose();
   }
 
+  String get _text => _c.text.replaceAll(_mark, '');
+
+  void _save(String text) =>
+      MemoStore.instance.setEntryText(widget.entry.id, text);
+
+  void _put(String text) {
+    _c.value = TextEditingValue(
+      text: _mark + text,
+      selection: TextSelection.collapsed(offset: _mark.length + text.length),
+    );
+  }
+
   void _onChanged(String v) {
-    MemoStore.instance.setEntryText(widget.entry.id, v);
+    if (v.isEmpty) {
+      // 빈 칸에서 지우기 — 윗 줄로 올라간다.
+      _put('');
+      FocusScope.of(context).previousFocus();
+      return;
+    }
+    final text = v.replaceAll(_mark, '');
+    if (text.contains('\n')) {
+      // 줄 안에서 줄바꿈 대신 아랫 줄로 내려간다.
+      final kept = text.replaceAll('\n', '');
+      _put(kept);
+      _save(kept);
+      widget.onSubmit();
+      return;
+    }
+    if (!v.startsWith(_mark)) _put(text);
+    _save(text);
+    setState(() {});
   }
 
   @override
@@ -766,54 +811,77 @@ class _EntryRowState extends State<_EntryRow> {
     final p = widget.palette;
     final isCheck = widget.board.kind == BoardKind.checklist;
     final done = widget.entry.checked;
+    final style = TextStyle(
+      fontSize: 17,
+      height: 1.3,
+      color: done ? p.ink.withValues(alpha: .45) : p.ink,
+      decoration: done ? TextDecoration.lineThrough : null,
+      decorationColor: p.ink.withValues(alpha: .45),
+    );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: Container(
-        height: 38,
+        // 글이 길어지면 줄을 바꿔 칸이 같이 자란다.
+        constraints: const BoxConstraints(minHeight: 38),
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: p.line, width: 1.6)),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (isCheck) ...[
-              _CheckBox(
-                checked: done,
-                palette: p,
-                onTap: () => MemoStore.instance.toggleEntry(widget.entry.id),
+              Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: _CheckBox(
+                  checked: done,
+                  palette: p,
+                  onTap: () => MemoStore.instance.toggleEntry(widget.entry.id),
+                ),
               ),
               const SizedBox(width: 12),
             ],
-            if (widget.board.kind == BoardKind.hearts) _HeartBullet(palette: p),
+            if (widget.board.kind == BoardKind.hearts)
+              Padding(
+                padding: const EdgeInsets.only(top: 7),
+                child: _HeartBullet(palette: p),
+              ),
             Expanded(
-              child: TextField(
-                controller: _c,
-                autofocus: widget.autofocus,
-                onChanged: _onChanged,
-                onSubmitted: (_) {
-                  MemoStore.instance.setEntryText(widget.entry.id, _c.text);
-                  widget.onSubmit();
-                },
-                textInputAction: TextInputAction.next,
-                cursorColor: p.ink,
-                style: TextStyle(
-                  fontSize: 17,
-                  height: 1.3,
-                  color: done ? p.ink.withValues(alpha: .45) : p.ink,
-                  decoration: done ? TextDecoration.lineThrough : null,
-                  decorationColor: p.ink.withValues(alpha: .45),
-                ),
-                decoration: InputDecoration(
-                  isDense: true,
-                  border: InputBorder.none,
-                  hintText: '적어보기',
-                  hintStyle: TextStyle(
-                    fontSize: 17,
-                    color: p.ink.withValues(alpha: .28),
+              child: Stack(
+                children: [
+                  // 힌트는 직접 그린다 — 칸에는 보이지 않는 글자가 늘 들어
+                  // 있어서 TextField 의 hintText 가 뜨지 않는다.
+                  if (widget.showHint && _text.isEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            '적어보기',
+                            style: style.copyWith(
+                              color: p.ink.withValues(alpha: .28),
+                              decoration: null,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  TextField(
+                    controller: _c,
+                    autofocus: widget.autofocus,
+                    onChanged: _onChanged,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    cursorColor: p.ink,
+                    style: style,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.only(top: 8, bottom: 8),
+                    ),
                   ),
-                  contentPadding: const EdgeInsets.only(bottom: 6),
-                ),
+                ],
               ),
             ),
             AnimatedOpacity(
@@ -821,9 +889,11 @@ class _EntryRowState extends State<_EntryRow> {
               duration: const Duration(milliseconds: 140),
               child: InkWell(
                 onTap: () => MemoStore.instance.deleteEntry(widget.entry.id),
+                // 줄 사이를 오갈 때 이 단추에 걸리지 않게 한다.
+                canRequestFocus: false,
                 borderRadius: BorderRadius.circular(16),
                 child: Padding(
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(9),
                   child: Icon(
                     Icons.close_rounded,
                     size: 15,
@@ -1057,17 +1127,23 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
               ),
               const SizedBox(height: 20),
               const _SheetLabel('카드 종류'),
-              SegmentedButton<BoardKind>(
-                segments: const [
-                  ButtonSegment(value: BoardKind.note, label: Text('메모')),
-                  ButtonSegment(
-                    value: BoardKind.checklist,
-                    label: Text('체크리스트'),
-                  ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final kind in const {
+                    BoardKind.note: '메모',
+                    BoardKind.checklist: '체크리스트',
+                    BoardKind.hearts: '하트',
+                  }.entries)
+                    _PickBox(
+                      label: kind.value,
+                      selected: board.kind == kind.key,
+                      onTap: () => setState(
+                        () => _store.updateBoard(board.id, kind: kind.key),
+                      ),
+                    ),
                 ],
-                selected: {board.kind},
-                onSelectionChanged: (s) =>
-                    setState(() => _store.updateBoard(board.id, kind: s.first)),
               ),
               const SizedBox(height: 20),
               const _SheetLabel('카드 색'),
@@ -1116,8 +1192,9 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
+                            // 고양이를 고를 때와 같은 테두리 색.
                             color: board.badgeKey == b.key
-                                ? b.color
+                                ? _pickedEdge(context)
                                 : Colors.black.withValues(alpha: .08),
                             width: board.badgeKey == b.key ? 2.2 : 1,
                           ),
@@ -1134,34 +1211,31 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                 runSpacing: 6,
                 children: [
                   for (final cat in CatSpec.all)
-                    GestureDetector(
-                      onTap: () => setState(
-                        () => _store.updateBoard(board.id, catId: cat.id),
-                      ),
-                      child: Container(
-                        width: 62,
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: board.catId == cat.id
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.transparent,
-                            width: 2,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CatFace(spec: cat, width: 44),
-                            Text(
-                              cat.name,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
+                    _CatPick(
+                      label: cat.name,
+                      // 세 마리를 고르면 한 마리 선택은 쉬어 간다.
+                      selected:
+                          board.pose != CatPose.trio && board.catId == cat.id,
+                      onTap: () => setState(() {
+                        _store.updateBoard(
+                          board.id,
+                          catId: cat.id,
+                          pose: board.pose == CatPose.trio
+                              ? CatPose.peekBottom
+                              : null,
+                        );
+                      }),
+                      child: CatFace(spec: cat, width: 44),
                     ),
+                  // 세 마리는 그림 한 장이라 자리가 아니라 고양이로 고른다.
+                  _CatPick(
+                    label: '세 마리',
+                    selected: board.pose == CatPose.trio,
+                    onTap: () => setState(
+                      () => _store.updateBoard(board.id, pose: CatPose.trio),
+                    ),
+                    child: const OriginalArtwork(art: 'trio', width: 56),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -1173,7 +1247,6 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                     CatPose.peekTop: '위에 걸터앉기',
                     CatPose.peekBottom: '오른쪽 아래',
                     CatPose.peekLeft: '왼쪽 아래',
-                    CatPose.trio: '세 마리',
                     CatPose.watermark: '옅게 깔기',
                     CatPose.none: '없음',
                   }.entries)
@@ -1195,6 +1268,88 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 고른 것을 감싸는 테두리 색. 고양이·배지·카드 종류가 같은 색을 쓴다.
+Color _pickedEdge(BuildContext context) =>
+    Theme.of(context).colorScheme.primary;
+
+/// 그림 하나와 이름으로 고르는 칸.
+class _CatPick extends StatelessWidget {
+  const _CatPick({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    required this.child,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: 68,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: selected ? _pickedEdge(context) : Colors.transparent,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(height: 40, child: Center(child: child)),
+          Text(label, style: const TextStyle(fontSize: 11)),
+        ],
+      ),
+    ),
+  );
+}
+
+/// 글자 하나로 고르는 둥근 박스.
+class _PickBox extends StatelessWidget {
+  const _PickBox({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final edge = _pickedEdge(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? edge.withValues(alpha: .10) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? edge : Colors.black.withValues(alpha: .12),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            color: selected ? edge : const Color(0xFF6B4F52),
           ),
         ),
       ),
