@@ -19,7 +19,7 @@ class MemoStore extends ChangeNotifier {
   static final MemoStore instance = MemoStore._();
 
   static const schemaVersion = 1;
-  static const appVersion = '1.0.0';
+  static const appVersion = '1.3.0';
 
   final List<Board> _boards = [];
   final List<Entry> _entries = [];
@@ -33,6 +33,13 @@ class MemoStore extends ChangeNotifier {
   String _deviceId = '';
   DateTime? _lastBackupAt;
 
+  /// 스토어에 올라온 판 가운데 이미 한 번 알린 것. 같은 판을 켤 때마다
+  /// 다시 묻지 않으려고 적어 둔다.
+  String _toldStoreVersion = '';
+
+  /// 목록에서 카드를 늘어놓는 차례.
+  BoardSort _sort = BoardSort.edited;
+
   File? _file;
   Timer? _saveTimer;
   bool _loaded = false;
@@ -41,11 +48,36 @@ class MemoStore extends ChangeNotifier {
   String get backgroundKey => _backgroundKey;
   String get deviceId => _deviceId;
   DateTime? get lastBackupAt => _lastBackupAt;
+  String get toldStoreVersion => _toldStoreVersion;
+  BoardSort get sort => _sort;
 
   /// 살아 있는 카드만 순서대로.
-  List<Board> get boards =>
-      _boards.where((b) => b.isAlive).toList()
-        ..sort((a, b) => a.order.compareTo(b.order));
+  ///
+  /// 붙박아 둔 카드가 언제나 앞이고, 그 안에서 고른 차례를 따른다.
+  List<Board> get boards {
+    final alive = _boards.where((b) => b.isAlive).toList();
+    alive.sort((a, b) {
+      if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+      final by = switch (_sort) {
+        // 최근에 손댄 것이 앞.
+        BoardSort.edited => b.updatedAt.compareTo(a.updatedAt),
+        BoardSort.created => a.createdAt.compareTo(b.createdAt),
+        // 한국어 정렬은 글자 코드 순서가 곧 가나다 순이다. 영어는
+        // 대소문자를 가리지 않고 견준다.
+        BoardSort.name => a.title.toLowerCase().compareTo(
+          b.title.toLowerCase(),
+        ),
+      };
+      // 한 번도 손대지 않은 기본 카드끼리는 때가 같다. 그럴 때는 처음
+      // 놓인 차례를 지켜, 갓 깐 기기에서 카드가 거꾸로 서지 않게 한다.
+      return by != 0 ? by : a.order.compareTo(b.order);
+    });
+    return alive;
+  }
+
+  /// 붙박아 둔 카드만, 그리고 나머지만.
+  List<Board> get pinnedBoards => boards.where((b) => b.isPinned).toList();
+  List<Board> get looseBoards => boards.where((b) => !b.isPinned).toList();
 
   /// 카드 하나에 속한 살아 있는 줄만 순서대로.
   List<Entry> entriesOf(String boardId) =>
@@ -110,6 +142,11 @@ class MemoStore extends ChangeNotifier {
     _backgroundKey = (settings['backgroundKey'] ?? 'paper') as String;
     _seededSets = (settings['seedSets'] ?? 1) as int;
     _fixups = (settings['fixups'] ?? 0) as int;
+    _toldStoreVersion = (settings['toldStoreVersion'] ?? '') as String;
+    _sort = BoardSort.values.firstWhere(
+      (s) => s.name == settings['sort'],
+      orElse: () => BoardSort.edited,
+    );
     _deviceId = (j['deviceId'] ?? '') as String;
     final backup = settings['lastBackupAt'];
     _lastBackupAt = backup == null ? null : DateTime.tryParse(backup as String);
@@ -121,7 +158,7 @@ class MemoStore extends ChangeNotifier {
 
   /// 이미 만들어 둔 카드의 글귀를 손본 횟수. 새 값을 올리면 쓰던 기기에서도
   /// [_applyFixups] 가 한 번 돈다.
-  static const fixups = 1;
+  static const fixups = 2;
 
   /// 첫 실행에 놓이는 열두 장. 컨셉아트 두 장의 구성 그대로다.
   void _seed({int from = 0}) {
@@ -234,7 +271,7 @@ class MemoStore extends ChangeNotifier {
             subtitle: '',
             color: 'lilac',
             cat: 'mongi',
-            badge: 'flower',
+            badge: 'spark',
             pose: CatPose.peekBottom,
             kind: BoardKind.checklist,
             lines: <String>[],
@@ -244,7 +281,7 @@ class MemoStore extends ChangeNotifier {
             subtitle: '하나씩 해도 괜찮아',
             color: 'mint',
             cat: 'dalrae',
-            badge: 'clover',
+            badge: 'sprout',
             pose: CatPose.peekBottom,
             kind: BoardKind.note,
             lines: <String>[],
@@ -261,6 +298,9 @@ class MemoStore extends ChangeNotifier {
           ),
         ];
 
+    // 한 묶음을 같은 때에 놓는다. 마이크로초 차이로 '편집일 순'이
+    // 뒤집히지 않게 하려는 것이다.
+    final stamp = DateTime.now().toUtc();
     for (var i = from * 6; i < seeds.length; i++) {
       final s = seeds[i];
       final board = Board.create(
@@ -273,6 +313,7 @@ class MemoStore extends ChangeNotifier {
         kind: s.kind,
         order: i,
       );
+      board.updatedAt = stamp;
       _boards.add(board);
       for (var k = 0; k < s.lines.length; k++) {
         _entries.add(
@@ -284,9 +325,13 @@ class MemoStore extends ChangeNotifier {
 
   /// 기본 카드의 글귀만 손본다. 직접 쓴 글은 건드리지 않는다.
   void _applyFixups() {
+    // 고를 수 없게 된 표시를 쓰던 카드는 남아 있는 것으로 옮긴다.
+    const movedBadges = {'flower': 'spark', 'clover': 'sprout'};
     for (final board in _boards) {
       if (board.subtitle == '작은 생각을 적어두기') board.subtitle = '';
       if (board.title == '잠깐 쉬어가기') board.subtitle = '천천히 해도 괜찮아';
+      final moved = movedBadges[board.badgeKey];
+      if (moved != null) board.badgeKey = moved;
     }
   }
 
@@ -310,6 +355,22 @@ class MemoStore extends ChangeNotifier {
     );
     _entries.add(entry);
     _bump(boardId);
+    return entry;
+  }
+
+  /// 어떤 줄 바로 아래에 빈 줄을 끼운다. 줄 끝에서 엔터를 누르면
+  /// 맨 아래가 아니라 그 자리 다음에 새 줄이 와야 한다.
+  Entry insertEntryAfter(String entryId) {
+    final at = _entry(entryId);
+    if (at == null) throw StateError('없는 줄 아래에는 끼울 수 없어요');
+    final after = entriesOf(at.boardId).where((e) => e.order > at.order);
+    for (final e in after) {
+      e.order += 1;
+      e.touch();
+    }
+    final entry = Entry.create(boardId: at.boardId, order: at.order + 1);
+    _entries.add(entry);
+    _bump(at.boardId);
     return entry;
   }
 
@@ -368,6 +429,29 @@ class MemoStore extends ChangeNotifier {
     _persist();
   }
 
+  /// 스토어의 이 판을 한 번 알린 것으로 적어 둔다.
+  void markStoreVersionTold(String version) {
+    if (_toldStoreVersion == version) return;
+    _toldStoreVersion = version;
+    _persist();
+  }
+
+  void setSort(BoardSort sort) {
+    if (_sort == sort) return;
+    _sort = sort;
+    _persist();
+  }
+
+  /// 목록 맨 위에 붙박거나 떼어 낸다.
+  void togglePin(String boardId) {
+    final b = _board(boardId);
+    if (b == null) return;
+    b.pinnedAt = b.isPinned ? null : DateTime.now().toUtc();
+    // 붙박는 것은 내용을 고치는 일이 아니다. updatedAt 을 건드리면
+    // '편집일 순'에서 엉뚱하게 앞으로 튀어나온다.
+    _persist();
+  }
+
   void markBackedUp(DateTime at) {
     _lastBackupAt = at;
     _persist();
@@ -416,6 +500,8 @@ class MemoStore extends ChangeNotifier {
       'backgroundKey': _backgroundKey,
       'seedSets': _seededSets,
       'fixups': _fixups,
+      'toldStoreVersion': _toldStoreVersion,
+      'sort': _sort.name,
       'lastBackupAt': _lastBackupAt?.toIso8601String(),
     },
     'boards': _boards.map((b) => b.toJson()).toList(),

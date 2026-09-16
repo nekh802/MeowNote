@@ -20,7 +20,7 @@ class OriginalArtwork extends StatelessWidget {
     'byeol' => const Rect.fromLTRB(1098, 362, 1460, 532),
     'sol' => const Rect.fromLTRB(60, 748, 250, 916),
     'trio' => const Rect.fromLTRB(551, 785, 984, 916),
-    'nabi' => const Rect.fromLTRB(830, 793, 984, 916),
+    'nabi' => const Rect.fromLTRB(820, 793, 984, 916),
     'kongi' => const Rect.fromLTRB(1262, 761, 1468, 915),
     'title' => const Rect.fromLTRB(493, 22, 1051, 142),
     // 두 번째 장.
@@ -64,82 +64,6 @@ class OriginalArtwork extends StatelessWidget {
         height: width * rect.height / rect.width,
         fit: BoxFit.fill,
         filterQuality: FilterQuality.high,
-      ),
-    );
-  }
-}
-
-/// Original handwriting, with light paper suppressed by an alpha color filter.
-/// Custom titles remain editable text; only unchanged sample labels use this.
-class OriginalLabel extends StatelessWidget {
-  const OriginalLabel({super.key, required this.text, required this.height});
-  final String text;
-  final double height;
-
-  static const regions = <String, Rect>{
-    '오늘의 메모': Rect.fromLTRB(95, 188, 265, 235),
-    '하나씩 해볼까': Rect.fromLTRB(574, 188, 797, 236),
-    '잠깐 쉬어가기': Rect.fromLTRB(1059, 188, 1283, 237),
-    '문득 떠오른 생각': Rect.fromLTRB(94, 575, 337, 625),
-    '오늘의 기분': Rect.fromLTRB(575, 577, 736, 625),
-    '나에게 한마디': Rect.fromLTRB(1058, 576, 1295, 625),
-    '작은 생각을 적어두기': Rect.fromLTRB(102, 252, 314, 283),
-    '천천히 해도 괜찮아': Rect.fromLTRB(1068, 252, 1269, 283),
-    '오늘도 잘했어': Rect.fromLTRB(1066, 638, 1212, 669),
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final rect = regions[text]!;
-    final scale = height / rect.height;
-    return Semantics(
-      label: text,
-      child: ExcludeSemantics(
-        child: SizedBox(
-          width: rect.width * scale,
-          height: height,
-          child: ClipRect(
-            child: ColorFiltered(
-              colorFilter: const ColorFilter.matrix([
-                1,
-                0,
-                0,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                -2.04,
-                -2.04,
-                -2.04,
-                0,
-                1020,
-              ]),
-              child: Stack(
-                children: [
-                  Positioned(
-                    left: -rect.left * scale,
-                    top: -rect.top * scale,
-                    width: 1536 * scale,
-                    height: 1024 * scale,
-                    child: Image.asset(
-                      OriginalArtwork.asset,
-                      fit: BoxFit.fill,
-                      filterQuality: FilterQuality.high,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

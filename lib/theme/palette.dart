@@ -68,6 +68,16 @@ class CardPalette {
     tint: Color(0xFFD8B95C),
   );
 
+  /// 아무 색도 얹지 않은 카드. 글씨만 남기고 싶을 때 쓴다.
+  static const white = CardPalette(
+    key: 'white',
+    label: '화이트',
+    bg: Color(0xFFFFFFFF),
+    ink: Color(0xFF6B5B5E),
+    line: Color(0xFFE6DFE1),
+    tint: Color(0xFFC9B6BB),
+  );
+
   static const all = <CardPalette>[
     blossom,
     apricot,
@@ -75,6 +85,7 @@ class CardPalette {
     lilac,
     mint,
     butter,
+    white,
   ];
 
   static CardPalette byKey(String key) =>
@@ -84,20 +95,22 @@ class CardPalette {
 /// 카드 제목 옆에 붙는 작은 표시. 카드 색과 따로 고를 수 있어야
 /// 컨셉아트처럼 라일락 카드에 노란 전구를 둘 수 있다.
 class CardBadge {
-  const CardBadge({
-    required this.key,
-    required this.icon,
-    required this.color,
-  });
+  const CardBadge({required this.key, required this.icon, required this.color});
 
   final String key;
-  final IconData icon;
+
+  /// 아무 표시도 두지 않는 '없음' 은 그림이 없다.
+  final IconData? icon;
   final Color color;
 
   static const all = <CardBadge>[
     CardBadge(key: 'heart', icon: Icons.favorite, color: Color(0xFFEE8F9F)),
     CardBadge(key: 'sprout', icon: Icons.eco, color: Color(0xFF86C08A)),
-    CardBadge(key: 'moon', icon: Icons.nightlight_round, color: Color(0xFF7C9BD8)),
+    CardBadge(
+      key: 'moon',
+      icon: Icons.nightlight_round,
+      color: Color(0xFF7C9BD8),
+    ),
     CardBadge(key: 'bulb', icon: Icons.lightbulb, color: Color(0xFFEFC75E)),
     CardBadge(
       key: 'smile',
@@ -107,22 +120,10 @@ class CardBadge {
     CardBadge(key: 'star', icon: Icons.star_rounded, color: Color(0xFFE9B85C)),
     CardBadge(key: 'paw', icon: Icons.pets, color: Color(0xFFC9A08E)),
     CardBadge(key: 'cloud', icon: Icons.cloud, color: Color(0xFF9FC2E0)),
-    // 두 번째 장에서 쓰는 것들.
-    CardBadge(
-      key: 'spark',
-      icon: Icons.auto_awesome,
-      color: Color(0xFFF2A0AE),
-    ),
-    CardBadge(
-      key: 'flower',
-      icon: Icons.local_florist,
-      color: Color(0xFFB39BD8),
-    ),
-    CardBadge(
-      key: 'clover',
-      icon: Icons.filter_vintage,
-      color: Color(0xFF8FBF87),
-    ),
+    // 두 번째 장에서 쓰는 것.
+    CardBadge(key: 'spark', icon: Icons.auto_awesome, color: Color(0xFFF2A0AE)),
+    // 제목 옆을 비워 두고 싶을 때.
+    CardBadge(key: 'none', icon: null, color: Color(0x00000000)),
   ];
 
   static CardBadge byKey(String key) =>
@@ -212,8 +213,17 @@ class BackgroundTheme {
     isDark: true,
   );
 
+  /// 위는 온전한 흰색, 아래로 갈수록 살짝 따뜻해지는 오프화이트.
+  static const white = BackgroundTheme(
+    key: 'white',
+    label: '화이트',
+    top: Color(0xFFFFFFFF),
+    bottom: Color(0xFFF4F0EC),
+  );
+
   static const all = <BackgroundTheme>[
     paper,
+    white,
     cream,
     peach,
     lavender,

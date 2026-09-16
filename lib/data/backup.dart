@@ -56,10 +56,10 @@ class LocalBackupTarget implements BackupTarget {
   @override
   Future<BackupRef> upload(String json) async {
     final dir = await _dir();
-    final stamp = DateTime.now()
-        .toUtc()
-        .toIso8601String()
-        .replaceAll(RegExp(r'[:.]'), '-');
+    final stamp = DateTime.now().toUtc().toIso8601String().replaceAll(
+      RegExp(r'[:.]'),
+      '-',
+    );
     final file = File('${dir.path}/memo-$stamp.json');
     await file.writeAsString(json);
     await _rotate();
@@ -74,12 +74,13 @@ class LocalBackupTarget implements BackupTarget {
   @override
   Future<List<BackupRef>> list() async {
     final dir = await _dir();
-    final files = dir
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.json'))
-        .toList()
-      ..sort((a, b) => b.path.compareTo(a.path)); // 파일명이 곧 시간순
+    final files =
+        dir
+            .listSync()
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.json'))
+            .toList()
+          ..sort((a, b) => b.path.compareTo(a.path)); // 파일명이 곧 시간순
 
     return files.map((f) {
       final stat = f.statSync();
@@ -156,10 +157,7 @@ class BackupService {
       const JsonEncoder.withIndent('  ').convert(store.toBundle()),
     );
     await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile(file.path)],
-        text: 'Malang Cat 백업 ($stamp)',
-      ),
+      ShareParams(files: [XFile(file.path)], text: 'Malang Cat 백업 ($stamp)'),
     );
   }
 }

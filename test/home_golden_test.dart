@@ -68,11 +68,19 @@ void main() {
     await tester.tap(find.byTooltip('줄 추가'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '오늘의 작은 행복');
-    await tester.tap(find.widgetWithText(ChoiceChip, '하나씩 해볼까'));
+    await tester.pumpAndSettle();
+
+    // 목록 장으로 갔다가 다른 메모를 골라 오면, 적어 둔 글이 남아 있어야
+    // 한다. 한 장에 메모 하나만 펼치므로 오갈 때마다 카드가 새로 선다.
+    await tester.tap(find.text('목록'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('하나씩 해볼까'));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsNWidgets(3));
     expect(find.byTooltip('줄 추가'), findsOneWidget);
-    await tester.tap(find.widgetWithText(ChoiceChip, '오늘의 메모'));
+    await tester.tap(find.text('목록'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('오늘의 메모').last);
     await tester.pumpAndSettle();
     // 칸에는 지우기를 알아채려고 세워 둔 보이지 않는 글자가 앞에 붙는다.
     expect(find.textContaining('오늘의 작은 행복'), findsOneWidget);
@@ -80,6 +88,12 @@ void main() {
     await expectLater(
       find.byType(HomeScreen),
       matchesGoldenFile('goldens/iphone.png'),
+    );
+    await tester.tap(find.text('목록'));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(HomeScreen),
+      matchesGoldenFile('goldens/iphone_library.png'),
     );
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
@@ -103,6 +117,14 @@ void main() {
     await expectLater(
       find.byType(HomeScreen),
       matchesGoldenFile('goldens/home.png'),
+    );
+
+    // 왼쪽 장 — 제목과 메모 고르는 ∨ 박스.
+    await tester.tap(find.text('목록'));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(HomeScreen),
+      matchesGoldenFile('goldens/library.png'),
     );
   });
 }

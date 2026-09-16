@@ -76,4 +76,123 @@ void main() {
     expect(tester.getSize(card).height, lessThan(tall));
     await close(tester);
   });
+
+  testWidgets('엔터는 맨 아래가 아니라 누른 줄 바로 아래에 새 줄을 놓는다', (tester) async {
+    await open(tester, const Size(390, 1000));
+    final board = MemoStore.instance.boards.first;
+
+    for (var i = 0; i < 2; i++) {
+      await tester.tap(find.byTooltip('줄 추가'));
+      await tester.pumpAndSettle();
+    }
+    await tester.enterText(find.byType(TextField).first, '첫 줄');
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '둘째 줄');
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '첫 줄\n');
+    await tester.pumpAndSettle();
+
+    final texts = MemoStore.instance
+        .entriesOf(board.id)
+        .map((e) => e.text)
+        .toList();
+    expect(texts, ['첫 줄', '', '둘째 줄']);
+    await close(tester);
+  });
+
+  testWidgets('적어 둔 주소는 눌러서 열 수 있게 그린다', (tester) async {
+    await open(tester, const Size(390, 900));
+
+    await tester.tap(find.byTooltip('줄 추가'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextField).first,
+      '참고 https://flutter.dev 보기',
+    );
+    await tester.pumpAndSettle();
+
+    // 쓰는 중에는 그대로 칸이다.
+    expect(find.byType(TextField), findsOneWidget);
+
+    // 커서가 떠나면 주소만 눌리는 글로 바뀐다.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
+    expect(
+      find.textContaining('flutter.dev', findRichText: true),
+      findsWidgets,
+    );
+
+    // 주소가 아닌 자리를 누르면 다시 쓰던 칸으로 돌아온다.
+    await tester.tap(find.textContaining('참고', findRichText: true).first);
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsOneWidget);
+    await close(tester);
+  });
+
+  testWidgets('엔터를 누르면 커서가 새로 생긴 줄로 내려간다', (tester) async {
+    await open(tester, const Size(390, 900));
+
+    await tester.tap(find.byTooltip('줄 추가'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '첫 줄\n');
+    await tester.pumpAndSettle();
+
+    final fields = tester
+        .widgetList<EditableText>(find.byType(EditableText))
+        .toList();
+    expect(fields.length, 2);
+    expect(fields.first.focusNode.hasFocus, isFalse);
+    expect(fields.last.focusNode.hasFocus, isTrue);
+    await close(tester);
+  });
+
+  testWidgets('하트는 적어보기가 서는 줄까지만 찍는다', (tester) async {
+    await open(tester, const Size(390, 1000));
+
+    // 하트 줄 카드로 옮겨 간다.
+    await tester.tap(find.text('목록'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('기분 좋은 시작'));
+    await tester.pumpAndSettle();
+
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byTooltip('줄 추가'));
+      await tester.pumpAndSettle();
+    }
+    await tester.enterText(find.byType(TextField).first, '첫 줄');
+    await tester.pumpAndSettle();
+
+    // 쓴 줄과 그 바로 아래 '적어보기' 줄, 둘까지만.
+    expect(find.text('적어보기'), findsOneWidget);
+    expect(find.byIcon(Icons.favorite), findsNWidgets(2));
+    await close(tester);
+  });
+
+  testWidgets('블록을 꾸욱 누르면 목록 맨 위에 붙박는다', (tester) async {
+    await open(tester, const Size(390, 1000));
+
+    await tester.tap(find.text('목록'));
+    await tester.pumpAndSettle();
+    expect(find.text('고정된 메모'), findsNothing);
+
+    // 같은 제목이 ∨ 박스에도 설 수 있어 블록만 집어 누른다.
+    final chip = find.descendant(
+      of: find.byType(ChoiceChip),
+      matching: find.text('내일 또 만나'),
+    );
+    await tester.longPress(chip);
+    await tester.pumpAndSettle();
+
+    expect(find.text('고정된 메모'), findsOneWidget);
+    expect(find.text('모든 메모'), findsOneWidget);
+    expect(MemoStore.instance.boards.first.title, '내일 또 만나');
+
+    // 한 번 더 꾸욱 누르면 떼어진다.
+    await tester.longPress(chip);
+    await tester.pumpAndSettle();
+    expect(find.text('고정된 메모'), findsNothing);
+    await close(tester);
+  });
 }

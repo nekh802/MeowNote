@@ -51,6 +51,18 @@ enum CatPose {
   none,
 }
 
+/// 목록에서 카드를 늘어놓는 차례.
+enum BoardSort {
+  /// 마지막으로 손댄 것이 맨 앞. 기본값 — 쓰던 메모를 다시 찾기 쉽다.
+  edited,
+
+  /// 처음 만든 것이 맨 앞.
+  created,
+
+  /// 제목 가나다·ABC 순.
+  name,
+}
+
 /// 화면에 놓이는 메모 카드 한 장.
 class Board {
   Board({
@@ -66,6 +78,7 @@ class Board {
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
+    this.pinnedAt,
   });
 
   final String id;
@@ -81,7 +94,11 @@ class Board {
   DateTime updatedAt;
   DateTime? deletedAt;
 
+  /// 목록 맨 위에 붙박아 둔 때. 안 붙였으면 null.
+  DateTime? pinnedAt;
+
   bool get isAlive => deletedAt == null;
+  bool get isPinned => pinnedAt != null;
 
   void touch() => updatedAt = _now();
 
@@ -124,6 +141,7 @@ class Board {
     'createdAt': _iso(createdAt),
     'updatedAt': _iso(updatedAt),
     'deletedAt': _iso(deletedAt),
+    'pinnedAt': _iso(pinnedAt),
   };
 
   factory Board.fromJson(Map<String, dynamic> j) => Board(
@@ -145,6 +163,7 @@ class Board {
     createdAt: _parse(j['createdAt']),
     updatedAt: _parse(j['updatedAt']),
     deletedAt: _parseOrNull(j['deletedAt']),
+    pinnedAt: _parseOrNull(j['pinnedAt']),
   );
 }
 

@@ -1,15 +1,25 @@
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
+import 'package:flutter/gestures.dart' show TapGestureRecognizer;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
+import 'package:url_launcher/url_launcher.dart';
 
+import '../data/app_update.dart';
 import '../data/backup.dart';
 import '../data/memo_store.dart';
+import '../data/share_text.dart';
+import '../data/when.dart';
 import '../data/widget_feed.dart';
 import '../models/memo.dart';
 import '../theme/palette.dart';
 import '../widgets/cat_face.dart';
 import '../widgets/original_artwork.dart';
+
+/// 앱스토어에서 이 앱을 찾을 이름표. 기기에 적어 둔 메모가 이 이름에
+/// 매여 있어 이름을 바꾼 뒤에도 그대로 두었다.
+const appBundleId = 'com.mallang.mallangMemo';
 
 /// 컨셉아트의 손글씨 느낌 — 모서리 장식 문구에 쓴다.
 TextStyle _hand(double size, Color color) => TextStyle(
@@ -45,18 +55,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 홈 화면 위젯은 타자 한 글자마다가 아니라 잠깐 쉴 때 한 번 갱신한다.
   Timer? _widgetTimer;
 
+  /// 왼쪽이 목록, 오른쪽이 펼친 메모. 켤 때는 메모부터 보이고, 화면을
+  /// 오른쪽으로 쓸면 목록이 따라 나온다.
+  late final PageController _pages = PageController(initialPage: memoPage);
+
+  static const libraryPage = 0;
+  static const memoPage = 1;
+
   @override
   void initState() {
     super.initState();
+    // 어느 메모를 펼쳐 둘지 처음부터 정해 둔다. 이걸 비워 두면 목록의
+    // 첫 장을 따라가느라, 붙박거나 차례를 바꿀 때마다 보던 메모가
+    // 슬그머니 바뀐다.
+    _selectedBoardId = _store.boards.firstOrNull?.id;
     WidgetsBinding.instance.addObserver(this);
     _store.addListener(_scheduleWidget);
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => WidgetFeed.publish(_store),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetFeed.publish(_store);
+      _offerStoreUpdate();
+    });
   }
 
   @override
   void dispose() {
+    _pages.dispose();
     _widgetTimer?.cancel();
     _store.removeListener(_scheduleWidget);
     WidgetsBinding.instance.removeObserver(this);
@@ -93,103 +116,52 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       animation: _store,
       builder: (context, _) {
         final bg = BackgroundTheme.byKey(_store.backgroundKey);
+        final boards = _store.boards;
+        final selected =
+            boards.where((b) => b.id == _selectedBoardId).firstOrNull ??
+            boards.firstOrNull;
         return Scaffold(
           body: AnimatedContainer(
             constraints: const BoxConstraints.expand(),
             duration: const Duration(milliseconds: 320),
             decoration: BoxDecoration(gradient: bg.gradient),
             child: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, c) {
-                  const gap = 22.0;
-                  final boards = _store.boards;
-                  final selected =
-                      boards
-                          .where((b) => b.id == _selectedBoardId)
-                          .firstOrNull ??
-                      boards.firstOrNull;
-                  final visibleBoards = boards
-                      .where((b) => b.id == selected?.id)
-                      .toList();
-                  final wide = c.maxWidth >= 1080;
-                  const cols = 1;
-                  final pad = wide ? 40.0 : 20.0;
-                  final cardW =
-                      (c.maxWidth - pad * 2 - gap * (cols - 1)) / cols;
-
-                  return SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(pad, 4, pad, 36),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _Header(
-                          bg: bg,
-                          showNotes: wide,
-                          onPickBackground: _openBackgroundSheet,
-                          onExport: _export,
-                        ),
-                        ...[
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              for (final board in boards)
-                                ChoiceChip(
-                                  label: Text(
-                                    board.title,
-                                    style: _round(
-                                      14,
-                                      CardPalette.byKey(board.colorKey).ink,
-                                    ),
-                                  ),
-                                  selected: board.id == selected?.id,
-                                  selectedColor: CardPalette.byKey(
-                                    board.colorKey,
-                                  ).bg,
-                                  backgroundColor: Colors.white.withValues(
-                                    alpha: .45,
-                                  ),
-                                  onSelected: (_) {
-                                    FocusManager.instance.primaryFocus
-                                        ?.unfocus();
-                                    setState(() {
-                                      _selectedBoardId = board.id;
-                                      _focusEntryId = null;
-                                    });
-                                  },
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 40),
-                        ],
-                        Wrap(
-                          spacing: gap,
-                          runSpacing: gap + 14, // 위로 튀어나온 고양이 자리
-                          children: [
-                            for (final board in visibleBoards)
-                              SizedBox(
-                                key: ValueKey(board.id),
-                                width: cardW,
-                                child: _BoardCard(
-                                  board: board,
-                                  entries: _store.entriesOf(board.id),
-                                  focusEntryId: _focusEntryId,
-                                  onAdd: () => _addEntry(board),
-                                  onOpenSettings: () => _openBoardSheet(board),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 22),
-                        _Footer(
-                          bg: bg,
-                          showNotes: wide,
-                          lastBackupAt: _store.lastBackupAt,
-                        ),
-                      ],
+              child: PageView(
+                controller: _pages,
+                // 페이지를 넘길 때 자판이 따라오면 다음 장을 덮는다.
+                onPageChanged: (_) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
+                children: [
+                  _LibraryPage(
+                    bg: bg,
+                    pinned: _store.pinnedBoards,
+                    loose: _store.looseBoards,
+                    selectedId: selected?.id,
+                    lastBackupAt: _store.lastBackupAt,
+                    onPick: _pickBoard,
+                    onPin: (b) {
+                      HapticFeedback.lightImpact();
+                      setState(() => _store.togglePin(b.id));
+                    },
+                    onPickBackground: _openBackgroundSheet,
+                    onExport: _export,
+                    onSort: _openSortSheet,
+                  ),
+                  if (selected == null)
+                    const SizedBox()
+                  else
+                    _MemoPage(
+                      bg: bg,
+                      board: selected,
+                      entries: _store.entriesOf(selected.id),
+                      focusEntryId: _focusEntryId,
+                      onBack: _openLibrary,
+                      onAdd: () => _addEntry(selected),
+                      onEnter: _splitEntry,
+                      onExport: () => _exportBoard(selected),
+                      onOpenSettings: () => _openBoardSheet(selected),
                     ),
-                  );
-                },
+                ],
               ),
             ),
           ),
@@ -198,11 +170,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// 목록에서 한 장을 고르면 곧바로 그 메모로 넘어간다.
+  void _pickBoard(Board board) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _selectedBoardId = board.id;
+      _focusEntryId = null;
+    });
+    _slideTo(memoPage);
+  }
+
+  void _openLibrary() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _slideTo(libraryPage);
+  }
+
+  void _slideTo(int page) => _pages.animateToPage(
+    page,
+    duration: const Duration(milliseconds: 280),
+    curve: Curves.easeOutCubic,
+  );
+
   void _addEntry(Board board) {
     final entry = _store.addEntry(board.id);
     setState(() => _focusEntryId = entry.id);
   }
 
+  /// 엔터 — 누른 줄 바로 아래에 새 줄을 놓고 커서를 옮긴다.
+  void _splitEntry(Entry at) {
+    final entry = _store.insertEntryAfter(at.id);
+    setState(() => _focusEntryId = entry.id);
+  }
+
+  /// 메모 전부를 담은 백업 파일을 공유 시트에 넘긴다.
   Future<void> _export() async {
     try {
       await _backup.exportToShareSheet();
@@ -212,6 +212,79 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         context,
       ).showSnackBar(SnackBar(content: Text('내보내기에 실패했어요: $e')));
     }
+  }
+
+  /// 카드 한 장을 글로 옮겨 공유 시트에 넘긴다.
+  Future<void> _exportBoard(Board board) async {
+    try {
+      await shareBoard(board, _store.entriesOf(board.id));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('내보내기에 실패했어요: $e')));
+    }
+  }
+
+  /// 앱스토어에 더 새로운 판이 있으면 켤 때 한 번 알린다.
+  ///
+  /// 같은 판을 두고 켤 때마다 묻지 않도록, 한 번 알린 판은 적어 둔다.
+  /// 인터넷이 없거나 아직 스토어에 없는 앱이면 아무 일도 일어나지 않는다.
+  Future<void> _offerStoreUpdate() async {
+    final release = await AppUpdate.lookUp(appBundleId);
+    if (release == null || !mounted) return;
+    if (!isNewerVersion(release.version, MemoStore.appVersion)) return;
+    if (_store.toldStoreVersion == release.version) return;
+    _store.markStoreVersionTold(release.version);
+
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('새 버전이 나왔어요', style: _round(19, const Color(0xFF6B4F52))),
+        content: const Text('앱스토어에서 말랑 고양이 메모를 최신으로 올려 주세요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('나중에'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('앱스토어 열기'),
+          ),
+        ],
+      ),
+    );
+    if (go ?? false) {
+      await launchUrl(release.page, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _openSortSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setSheet) => _Sheet(
+          title: '늘어놓는 차례',
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in const {
+                BoardSort.edited: '편집일',
+                BoardSort.created: '생성일',
+                BoardSort.name: '가나다·ABC',
+              }.entries)
+                _PickBox(
+                  label: entry.value,
+                  selected: _store.sort == entry.key,
+                  onTap: () => setSheet(() => _store.setSort(entry.key)),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openBackgroundSheet() async {
@@ -250,6 +323,316 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 }
 
+// ------------------------------------------------------------------ 페이지
+
+/// 왼쪽 장 — 제목과 메모 고르는 ∨ 박스.
+class _LibraryPage extends StatefulWidget {
+  const _LibraryPage({
+    required this.bg,
+    required this.pinned,
+    required this.loose,
+    required this.selectedId,
+    required this.lastBackupAt,
+    required this.onPick,
+    required this.onPin,
+    required this.onPickBackground,
+    required this.onExport,
+    required this.onSort,
+  });
+
+  final BackgroundTheme bg;
+  final List<Board> pinned;
+  final List<Board> loose;
+  final String? selectedId;
+  final DateTime? lastBackupAt;
+  final void Function(Board) onPick;
+  final void Function(Board) onPin;
+  final VoidCallback onPickBackground;
+  final VoidCallback onExport;
+  final VoidCallback onSort;
+
+  @override
+  State<_LibraryPage> createState() => _LibraryPageState();
+}
+
+class _LibraryPageState extends State<_LibraryPage> {
+  /// ∨ 박스는 펼친 채로 연다. 이 장에 달리 할 일이 없어서 접어 두면
+  /// 빈 화면만 남는다.
+  bool _open = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.bg;
+    final wide = MediaQuery.of(context).size.width >= 1080;
+    final pad = wide ? 40.0 : 20.0;
+    final all = [...widget.pinned, ...widget.loose];
+    final picked = all.where((b) => b.id == widget.selectedId).firstOrNull;
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(pad, 4, pad, 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _Header(
+            bg: bg,
+            showNotes: wide,
+            onPickBackground: widget.onPickBackground,
+            onExport: widget.onExport,
+            onSort: widget.onSort,
+          ),
+          const SizedBox(height: 4),
+          _PickerBox(
+            bg: bg,
+            board: picked,
+            open: _open,
+            onTap: () => setState(() => _open = !_open),
+          ),
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 200),
+            crossFadeState: _open
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (widget.pinned.isNotEmpty) ...[
+                    _GroupLabel('고정된 메모', bg: bg),
+                    _BoardChips(
+                      boards: widget.pinned,
+                      selectedId: widget.selectedId,
+                      onPick: widget.onPick,
+                      onPin: widget.onPin,
+                    ),
+                    const SizedBox(height: 14),
+                    _GroupLabel('모든 메모', bg: bg),
+                  ],
+                  _BoardChips(
+                    boards: widget.loose,
+                    selectedId: widget.selectedId,
+                    onPick: widget.onPick,
+                    onPin: widget.onPin,
+                  ),
+                ],
+              ),
+            ),
+            secondChild: const SizedBox(width: double.infinity),
+          ),
+          const SizedBox(height: 22),
+          _Footer(bg: bg, showNotes: wide, lastBackupAt: widget.lastBackupAt),
+        ],
+      ),
+    );
+  }
+}
+
+/// 지금 펼쳐 둔 메모를 보여 주는 ∨ 박스.
+class _PickerBox extends StatelessWidget {
+  const _PickerBox({
+    required this.bg,
+    required this.board,
+    required this.open,
+    required this.onTap,
+  });
+
+  final BackgroundTheme bg;
+  final Board? board;
+  final bool open;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = board == null ? null : CardPalette.byKey(board!.colorKey);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
+        decoration: BoxDecoration(
+          color: bg.isDark
+              ? Colors.white.withValues(alpha: .10)
+              : Colors.white.withValues(alpha: .72),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: .8)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                board?.title ?? '메모 고르기',
+                style: _round(17, p?.ink ?? bg.onBackground),
+              ),
+            ),
+            AnimatedRotation(
+              turns: open ? .5 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: bg.onBackground.withValues(alpha: .6),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 목록 위에 붙는 작은 이름표.
+class _GroupLabel extends StatelessWidget {
+  const _GroupLabel(this.text, {required this.bg});
+
+  final String text;
+  final BackgroundTheme bg;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(left: 4, bottom: 6),
+    child: Text(
+      text,
+      style: TextStyle(fontSize: 12, color: bg.onBackgroundMuted),
+    ),
+  );
+}
+
+/// 메모를 고르는 작은 블록들. 꾸욱 누르면 맨 위에 붙박는다.
+class _BoardChips extends StatelessWidget {
+  const _BoardChips({
+    required this.boards,
+    required this.selectedId,
+    required this.onPick,
+    required this.onPin,
+  });
+
+  final List<Board> boards;
+  final String? selectedId;
+  final void Function(Board) onPick;
+  final void Function(Board) onPin;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      for (final board in boards)
+        GestureDetector(
+          // 꾹 누르기는 블록 안 InkWell 의 짧은 누름과 다투지 않는다.
+          onLongPress: () => onPin(board),
+          child: ChoiceChip(
+            label: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (board.isPinned)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 5),
+                    child: Icon(
+                      Icons.push_pin,
+                      size: 12,
+                      color: CardPalette.byKey(board.colorKey).ink,
+                    ),
+                  ),
+                Text(
+                  board.title,
+                  style: _round(14, CardPalette.byKey(board.colorKey).ink),
+                ),
+              ],
+            ),
+            selected: board.id == selectedId,
+            selectedColor: CardPalette.byKey(board.colorKey).bg,
+            backgroundColor: Colors.white.withValues(alpha: .45),
+            onSelected: (_) => onPick(board),
+          ),
+        ),
+    ],
+  );
+}
+
+/// 오른쪽 장 — 펼친 메모 한 장만.
+class _MemoPage extends StatelessWidget {
+  const _MemoPage({
+    required this.bg,
+    required this.board,
+    required this.entries,
+    required this.focusEntryId,
+    required this.onBack,
+    required this.onAdd,
+    required this.onEnter,
+    required this.onExport,
+    required this.onOpenSettings,
+  });
+
+  final BackgroundTheme bg;
+  final Board board;
+  final List<Entry> entries;
+  final String? focusEntryId;
+  final VoidCallback onBack;
+  final VoidCallback onAdd;
+  final void Function(Entry) onEnter;
+  final VoidCallback onExport;
+  final VoidCallback onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final wide = MediaQuery.of(context).size.width >= 1080;
+    final pad = wide ? 40.0 : 20.0;
+    // 위로 튀어나온 고양이 자리와 아래 여백.
+    const top = 26.0, bottom = 36.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 밀어서 가는 길은 눈에 띄지 않는다. 눌러서도 갈 수 있게 둔다.
+        Padding(
+          padding: EdgeInsets.fromLTRB(pad - 12, 4, pad, 0),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onBack,
+              icon: const Icon(Icons.chevron_left_rounded, size: 20),
+              label: const Text('목록'),
+              style: TextButton.styleFrom(
+                foregroundColor: bg.onBackground.withValues(alpha: .75),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, c) => SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(pad, top, pad, bottom),
+              child: ConstrainedBox(
+                // 카드는 제 높이만큼만 자란다. 남는 자리는 카드를 늘리지
+                // 않고 가운데로 옮겨 채운다 — 줄을 지우면 카드도 그만큼
+                // 짧아져야 하기 때문이다.
+                constraints: BoxConstraints(
+                  minHeight: (c.maxHeight - top - bottom).clamp(0.0, 4000.0),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _BoardCard(
+                      key: ValueKey(board.id),
+                      board: board,
+                      entries: entries,
+                      focusEntryId: focusEntryId,
+                      onAdd: onAdd,
+                      onEnter: onEnter,
+                      onExport: onExport,
+                      onOpenSettings: onOpenSettings,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ------------------------------------------------------------------ 머리말
 
 class _Header extends StatelessWidget {
@@ -258,12 +641,14 @@ class _Header extends StatelessWidget {
     required this.showNotes,
     required this.onPickBackground,
     required this.onExport,
+    required this.onSort,
   });
 
   final BackgroundTheme bg;
   final bool showNotes;
   final VoidCallback onPickBackground;
   final VoidCallback onExport;
+  final VoidCallback onSort;
 
   @override
   Widget build(BuildContext context) {
@@ -323,6 +708,13 @@ class _Header extends StatelessWidget {
                   tooltip: '백업 파일 내보내기',
                   bg: bg,
                   onTap: onExport,
+                ),
+                const SizedBox(width: 6),
+                _TopAction(
+                  icon: Icons.more_horiz_rounded,
+                  tooltip: '늘어놓는 차례',
+                  bg: bg,
+                  onTap: onSort,
                 ),
               ],
             ),
@@ -387,10 +779,13 @@ class _TopAction extends StatelessWidget {
 
 class _BoardCard extends StatefulWidget {
   const _BoardCard({
+    super.key,
     required this.board,
     required this.entries,
     required this.focusEntryId,
     required this.onAdd,
+    required this.onEnter,
+    required this.onExport,
     required this.onOpenSettings,
   });
 
@@ -398,6 +793,8 @@ class _BoardCard extends StatefulWidget {
   final List<Entry> entries;
   final String? focusEntryId;
   final VoidCallback onAdd;
+  final void Function(Entry) onEnter;
+  final VoidCallback onExport;
   final VoidCallback onOpenSettings;
 
   @override
@@ -431,6 +828,12 @@ class _BoardCardState extends State<_BoardCard> {
       _ => 110.0,
     };
     final minRules = board.pose == CatPose.watermark ? 2 : 4;
+    // 고양이가 앉은 구석에는 발자국을 찍지 않는다. 겹쳐 그리면 발바닥이
+    // 고양이 몸에 찍힌 것처럼 보인다.
+    final showPaw =
+        board.pose != CatPose.peekLeft &&
+        board.pose != CatPose.peekBottom &&
+        board.pose != CatPose.trio;
     // '적어보기'는 마지막으로 쓴 글 바로 아래 한 줄에만 둔다.
     final hintRow =
         widget.entries.lastIndexWhere((e) => e.text.trim().isNotEmpty) + 1;
@@ -481,8 +884,10 @@ class _BoardCardState extends State<_BoardCard> {
                           child: CatFace(
                             spec: cat,
                             width: 224,
-                            // 카드 글씨를 가리지 않게 절반만 비친다.
-                            opacity: .5,
+                            // 카드 글씨를 가리지 않게 절반만 비친다. 별이는
+                            // 원본부터 수채로 옅게 그린 아이라 더 깎으면
+                            // 아예 보이지 않는다.
+                            opacity: cat.id == 'byeol' ? 1 : .5,
                             tint: p.tint,
                           ),
                         ),
@@ -542,12 +947,14 @@ class _BoardCardState extends State<_BoardCard> {
                                             style: _round(24, p.ink),
                                           ),
                                         ),
-                                        const SizedBox(width: 6),
-                                        Icon(
-                                          badge.icon,
-                                          size: 17,
-                                          color: badge.color,
-                                        ),
+                                        if (badge.icon != null) ...[
+                                          const SizedBox(width: 6),
+                                          Icon(
+                                            badge.icon,
+                                            size: 17,
+                                            color: badge.color,
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),
@@ -555,17 +962,23 @@ class _BoardCardState extends State<_BoardCard> {
                                 AnimatedOpacity(
                                   opacity: _hover || touch ? 1 : 0,
                                   duration: const Duration(milliseconds: 140),
-                                  child: InkWell(
-                                    onTap: widget.onOpenSettings,
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(4),
-                                      child: Icon(
-                                        Icons.more_horiz_rounded,
-                                        size: 18,
-                                        color: p.ink.withValues(alpha: .45),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _CardAction(
+                                        icon: Icons.ios_share,
+                                        tooltip: '이 카드 내보내기',
+                                        ink: p.ink,
+                                        onTap: widget.onExport,
                                       ),
-                                    ),
+                                      const SizedBox(width: 2),
+                                      _CardAction(
+                                        icon: Icons.more_horiz_rounded,
+                                        tooltip: '카드 꾸미기',
+                                        ink: p.ink,
+                                        onTap: widget.onOpenSettings,
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -573,20 +986,23 @@ class _BoardCardState extends State<_BoardCard> {
                           ),
                           if (board.subtitle.isNotEmpty) ...[
                             const SizedBox(height: 6),
-                            if (OriginalLabel.regions.containsKey(
+                            // 한 줄 설명은 제목과 같은 서체로 둔다.
+                            Text(
                               board.subtitle,
-                            ))
-                              OriginalLabel(text: board.subtitle, height: 22)
-                            else
-                              Text(
-                                board.subtitle,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: p.ink.withValues(alpha: .78),
-                                ),
-                              ),
+                              style: _round(16, p.ink.withValues(alpha: .78)),
+                            ),
                           ],
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 4),
+                          // 이 카드를 처음 편 날. 지워도 되는 장식이 아니라
+                          // 카드가 늘 지니고 있는 값이다.
+                          Text(
+                            '${ymd(board.createdAt)} 시작',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: p.ink.withValues(alpha: .45),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                           for (var i = 0; i < widget.entries.length; i++)
                             _EntryRow(
                               key: ValueKey(widget.entries[i].id),
@@ -596,7 +1012,10 @@ class _BoardCardState extends State<_BoardCard> {
                               autofocus:
                                   widget.entries[i].id == widget.focusEntryId,
                               showHint: i == hintRow,
-                              onSubmit: widget.onAdd,
+                              // 줄 앞 하트·네모는 '적어보기'가 서는 줄까지만
+                              // 찍는다. 그 아래는 아직 쓸 자리가 아니다.
+                              showMark: i <= hintRow,
+                              onEnter: () => widget.onEnter(widget.entries[i]),
                             ),
                           // 컨셉아트처럼 빈 줄도 괘선으로 남겨 둔다.
                           for (var i = widget.entries.length; i < minRules; i++)
@@ -604,22 +1023,24 @@ class _BoardCardState extends State<_BoardCard> {
                               palette: p,
                               onTap: widget.onAdd,
                               kind: board.kind,
+                              showMark: i <= hintRow,
                             ),
                         ],
                       ),
                     ),
 
                     // 발자국 — + 버튼 반대편 구석
-                    Positioned(
-                      left: catOnRight ? null : 20,
-                      right: catOnRight ? 20 : null,
-                      bottom: 18,
-                      child: Icon(
-                        Icons.pets,
-                        size: 15,
-                        color: p.tint.withValues(alpha: .45),
+                    if (showPaw)
+                      Positioned(
+                        left: catOnRight ? null : 20,
+                        right: catOnRight ? 20 : null,
+                        bottom: 18,
+                        child: Icon(
+                          Icons.pets,
+                          size: 15,
+                          color: p.tint.withValues(alpha: .45),
+                        ),
                       ),
-                    ),
 
                     // 줄 추가
                     Positioned(
@@ -645,6 +1066,36 @@ class _BoardCardState extends State<_BoardCard> {
       ),
     );
   }
+}
+
+/// 카드 제목 줄 오른쪽에 서는 작은 단추.
+class _CardAction extends StatelessWidget {
+  const _CardAction({
+    required this.icon,
+    required this.tooltip,
+    required this.ink,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final Color ink;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip,
+    child: InkWell(
+      onTap: onTap,
+      // 줄 사이를 오갈 때 이 단추에 초점이 걸리지 않게 한다.
+      canRequestFocus: false,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Icon(icon, size: 18, color: ink.withValues(alpha: .45)),
+      ),
+    ),
+  );
 }
 
 /// 카드 오른쪽 위 모서리에 걸터앉는 고양이 자리. 제목 줄이 그 밑으로
@@ -710,6 +1161,26 @@ class _AddButton extends StatelessWidget {
   }
 }
 
+/// 줄 한 칸의 높이. 줄 앞 표시는 글이 길어져 줄이 늘어도 이 높이 안에서
+/// 첫 줄과 나란히 선다.
+const _rowHeight = 38.0;
+
+/// 줄 앞 표시가 서는 자리.
+///
+/// 글을 따라 위아래로 흔들리지 않도록 높이를 한 줄로 못 박고 그 가운데에
+/// 세운다. 글줄의 한가운데와 눈높이가 맞는다.
+class _MarkSlot extends StatelessWidget {
+  const _MarkSlot({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: _rowHeight,
+    child: Center(widthFactor: 1, child: child),
+  );
+}
+
 /// 줄 앞에 놓이는 작은 하트. 두 번째 장의 하트 줄 카드에 쓴다.
 class _HeartBullet extends StatelessWidget {
   const _HeartBullet({required this.palette});
@@ -717,9 +1188,11 @@ class _HeartBullet extends StatelessWidget {
   final CardPalette palette;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(right: 12),
-    child: Icon(Icons.favorite, size: 15, color: palette.tint),
+  Widget build(BuildContext context) => _MarkSlot(
+    child: Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: Icon(Icons.favorite, size: 15, color: palette.tint),
+    ),
   );
 }
 
@@ -729,31 +1202,40 @@ class _EmptyRule extends StatelessWidget {
     required this.palette,
     required this.onTap,
     this.kind = BoardKind.note,
+    this.showMark = true,
   });
 
   final CardPalette palette;
   final VoidCallback onTap;
   final BoardKind kind;
 
+  /// 줄 앞 표시를 찍을지. '적어보기' 아래로는 비워 둔다.
+  final bool showMark;
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
       child: Container(
-        height: 38,
+        height: _rowHeight,
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: palette.line, width: 1.6)),
         ),
-        child: switch (kind) {
-          // 아직 아무것도 없어도 카드 성격이 보이도록 줄 앞 표시는 그린다.
-          BoardKind.hearts => Row(children: [_HeartBullet(palette: palette)]),
-          BoardKind.checklist => Row(
-            children: [
-              _CheckBox(checked: false, palette: palette, onTap: onTap),
-            ],
-          ),
-          BoardKind.note => null,
-        },
+        child: !showMark
+            ? null
+            : switch (kind) {
+                // 아직 아무것도 없어도 카드 성격이 보이도록 줄 앞 표시는
+                // 그린다.
+                BoardKind.hearts => Row(
+                  children: [_HeartBullet(palette: palette)],
+                ),
+                BoardKind.checklist => Row(
+                  children: [
+                    _CheckBox(checked: false, palette: palette, onTap: onTap),
+                  ],
+                ),
+                BoardKind.note => null,
+              },
       ),
     );
   }
@@ -767,7 +1249,8 @@ class _EntryRow extends StatefulWidget {
     required this.palette,
     required this.autofocus,
     required this.showHint,
-    required this.onSubmit,
+    required this.showMark,
+    required this.onEnter,
   });
 
   final Entry entry;
@@ -777,11 +1260,19 @@ class _EntryRow extends StatefulWidget {
 
   /// 마지막 글 바로 아래 한 줄에만 '적어보기'를 띄운다.
   final bool showHint;
-  final VoidCallback onSubmit;
+
+  /// 줄 앞 하트·네모를 찍을지.
+  final bool showMark;
+
+  /// 엔터를 누른 순간 — 이 줄 바로 아래로 이어 쓴다.
+  final VoidCallback onEnter;
 
   @override
   State<_EntryRow> createState() => _EntryRowState();
 }
+
+/// 글 안의 주소. 뒤에 붙은 문장부호까지 주소로 삼지 않도록 나중에 깎는다.
+final _urlPattern = RegExp(r'(https?://|www\.)[^\s]+', caseSensitive: false);
 
 class _EntryRowState extends State<_EntryRow> {
   /// 빈 칸에서 지우기를 누른 걸 알아채려고 앞에 세워 두는 보이지 않는 글자.
@@ -792,11 +1283,51 @@ class _EntryRowState extends State<_EntryRow> {
   late final TextEditingController _c = TextEditingController(
     text: _mark + widget.entry.text,
   );
+  final _focus = FocusNode();
+
+  /// 직전에 본 칸의 내용. 한글을 조합하다 값이 잠깐 비는 것과, 정말로
+  /// 빈 줄에서 지우기를 누른 것을 가른다. late 초기화로 미루면 처음 읽는
+  /// 때가 이미 칸이 빈 뒤라 둘을 가르지 못한다 — initState 에서 채운다.
+  late String _prev;
+
   bool _hover = false;
+  bool _movingCaret = false;
+
+  /// 주소가 눌리게 그려 둔 줄을 눌러 다시 쓰기로 돌아가는 중. 이때는 칸을
+  /// 새로 세우므로 autofocus 가 먹는다. 칸이 빠져 있는 동안에는 초점을
+  /// 달라고 해도 받아 줄 상대가 없다.
+  bool _wantEdit = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _prev = _c.text;
+    _c.addListener(_keepCaretAfterMark);
+    _focus.addListener(_onFocusChanged);
+    if (widget.autofocus) _grabFocusSoon();
+  }
+
+  @override
+  void didUpdateWidget(_EntryRow old) {
+    super.didUpdateWidget(old);
+    if (!old.autofocus && widget.autofocus) _grabFocusSoon();
+  }
+
+  /// 방금 생긴 줄로 커서를 옮긴다.
+  ///
+  /// TextField 의 autofocus 는 그 자리에 이미 초점을 쥔 칸이 있으면 조용히
+  /// 넘어간다. 엔터로 줄을 만들 때는 바로 윗 줄이 초점을 쥐고 있으므로,
+  /// 칸이 자리를 잡은 다음 초점을 직접 가져와야 커서가 실제로 내려온다.
+  void _grabFocusSoon() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
 
   @override
   void dispose() {
     _c.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -810,27 +1341,66 @@ class _EntryRowState extends State<_EntryRow> {
       text: _mark + text,
       selection: TextSelection.collapsed(offset: _mark.length + text.length),
     );
+    _prev = _c.text;
+  }
+
+  /// 커서가 보이지 않는 표식 앞에 서지 못하게 막는다.
+  ///
+  /// 거기서 글을 쓰면 새 글자가 표식보다 앞에 붙는다. 그걸 되돌리려고
+  /// 칸 값을 다시 쓰는 순간 한글 조합이 끊겨, 글자가 사라지거나 윗 줄로
+  /// 딸려 올라갔다. 아예 커서를 표식 뒤로만 세워 두면 되돌릴 일이 없다.
+  void _keepCaretAfterMark() {
+    if (_movingCaret) return;
+    final v = _c.value;
+    if (!v.text.startsWith(_mark) || v.composing.isValid) return;
+    final s = v.selection;
+    if (!s.isValid || !s.isCollapsed || s.baseOffset != 0) return;
+    _movingCaret = true;
+    _c.selection = const TextSelection.collapsed(offset: _mark.length);
+    _movingCaret = false;
+  }
+
+  void _onFocusChanged() {
+    if (!_focus.hasFocus) {
+      _wantEdit = false;
+      // 붙여넣기처럼 표식째 갈아치운 뒤에는 커서가 떠난 김에 되살린다.
+      if (_c.text.isNotEmpty && !_c.text.startsWith(_mark)) _put(_c.text);
+    }
+    if (mounted) setState(() {});
   }
 
   void _onChanged(String v) {
+    final composing = _c.value.composing.isValid;
+
     if (v.isEmpty) {
-      // 빈 칸에서 지우기 — 그 줄을 지우고 윗 줄로 올라간다. 줄이 사라지는
-      // 만큼 카드도 짧아진다. 지우기 전에 초점을 옮겨야 이미 사라진 칸에서
-      // 초점을 찾지 않는다.
-      FocusScope.of(context).previousFocus();
-      MemoStore.instance.deleteEntry(widget.entry.id);
+      // 보이지 않는 표식까지 지워졌다 = 빈 줄에서 지우기를 눌렀다.
+      // 조합 중에 값이 잠깐 비는 일이 있어 직전 내용도 함께 본다.
+      if (_prev == _mark && !composing) {
+        _prev = '';
+        // 지우기 전에 초점을 옮겨야 이미 사라진 칸에서 초점을 찾지 않는다.
+        FocusScope.of(context).previousFocus();
+        MemoStore.instance.deleteEntry(widget.entry.id);
+        return;
+      }
+      _prev = v;
+      _save('');
+      setState(() {});
       return;
     }
+    _prev = v;
+
     final text = v.replaceAll(_mark, '');
     if (text.contains('\n')) {
-      // 줄 안에서 줄바꿈 대신 아랫 줄로 내려간다.
+      // 칸 안에서 줄을 바꾸는 대신 바로 아랫줄로 이어 쓴다.
       final kept = text.replaceAll('\n', '');
       _put(kept);
       _save(kept);
-      widget.onSubmit();
+      widget.onEnter();
       return;
     }
-    if (!v.startsWith(_mark)) _put(text);
+    // 표식이 사라졌으면 되살린다. 조합 중에는 손대지 않는다 — 값을
+    // 되돌리는 순간 조합이 끊긴다.
+    if (!v.startsWith(_mark) && !composing) _put(text);
     _save(text);
     setState(() {});
   }
@@ -847,22 +1417,26 @@ class _EntryRowState extends State<_EntryRow> {
       decoration: done ? TextDecoration.lineThrough : null,
       decorationColor: p.ink.withValues(alpha: .45),
     );
+    final text = _text;
+    // 쓰는 중에는 글자 그대로 두고, 손을 뗀 뒤에만 주소를 눌리게 한다.
+    // 칸 위에 겹쳐 그리면 커서와 글자가 어긋난다.
+    final showLinks =
+        !_wantEdit && !_focus.hasFocus && _urlPattern.hasMatch(text);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: Container(
         // 글이 길어지면 줄을 바꿔 칸이 같이 자란다.
-        constraints: const BoxConstraints(minHeight: 38),
+        constraints: const BoxConstraints(minHeight: _rowHeight),
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: p.line, width: 1.6)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (isCheck) ...[
-              Padding(
-                padding: const EdgeInsets.only(top: 5),
+            if (isCheck && widget.showMark) ...[
+              _MarkSlot(
                 child: _CheckBox(
                   checked: done,
                   palette: p,
@@ -871,17 +1445,14 @@ class _EntryRowState extends State<_EntryRow> {
               ),
               const SizedBox(width: 12),
             ],
-            if (widget.board.kind == BoardKind.hearts)
-              Padding(
-                padding: const EdgeInsets.only(top: 7),
-                child: _HeartBullet(palette: p),
-              ),
+            if (widget.board.kind == BoardKind.hearts && widget.showMark)
+              _HeartBullet(palette: p),
             Expanded(
               child: Stack(
                 children: [
                   // 힌트는 직접 그린다 — 칸에는 보이지 않는 글자가 늘 들어
                   // 있어서 TextField 의 hintText 가 뜨지 않는다.
-                  if (widget.showHint && _text.isEmpty)
+                  if (widget.showHint && text.isEmpty)
                     Positioned.fill(
                       child: IgnorePointer(
                         child: Padding(
@@ -896,20 +1467,32 @@ class _EntryRowState extends State<_EntryRow> {
                         ),
                       ),
                     ),
-                  TextField(
-                    controller: _c,
-                    autofocus: widget.autofocus,
-                    onChanged: _onChanged,
-                    maxLines: null,
-                    keyboardType: TextInputType.multiline,
-                    cursorColor: p.ink,
-                    style: style,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.only(top: 8, bottom: 8),
+                  if (showLinks)
+                    _LinkedText(
+                      text: text,
+                      style: style,
+                      linkColor: p.tint,
+                      onTapText: () {
+                        setState(() => _wantEdit = true);
+                        _grabFocusSoon();
+                      },
+                    )
+                  else
+                    TextField(
+                      controller: _c,
+                      focusNode: _focus,
+                      autofocus: widget.autofocus || _wantEdit,
+                      onChanged: _onChanged,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      cursorColor: p.ink,
+                      style: style,
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.only(top: 8, bottom: 8),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -932,6 +1515,100 @@ class _EntryRowState extends State<_EntryRow> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 적어 둔 글을 그대로 보여 주되 주소만 눌리게 한다.
+///
+/// 칸(TextField)과 같은 자리·같은 서체로 그려야 커서가 들어올 때 글자가
+/// 움직이지 않는다. 주소가 아닌 자리를 누르면 다시 쓰던 칸으로 돌아간다.
+class _LinkedText extends StatefulWidget {
+  const _LinkedText({
+    required this.text,
+    required this.style,
+    required this.linkColor,
+    required this.onTapText,
+  });
+
+  final String text;
+  final TextStyle style;
+  final Color linkColor;
+  final VoidCallback onTapText;
+
+  @override
+  State<_LinkedText> createState() => _LinkedTextState();
+}
+
+class _LinkedTextState extends State<_LinkedText> {
+  final _taps = <TapGestureRecognizer>[];
+
+  @override
+  void dispose() {
+    _clear();
+    super.dispose();
+  }
+
+  void _clear() {
+    for (final t in _taps) {
+      t.dispose();
+    }
+    _taps.clear();
+  }
+
+  Future<void> _open(String url) async {
+    final uri = Uri.parse(url.startsWith('http') ? url : 'https://$url');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('주소를 열지 못했어요')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _clear();
+    final spans = <InlineSpan>[];
+    var at = 0;
+    for (final m in _urlPattern.allMatches(widget.text)) {
+      if (m.start > at) {
+        spans.add(TextSpan(text: widget.text.substring(at, m.start)));
+      }
+      final whole = m.group(0)!;
+      // 문장 끝의 마침표나 괄호는 주소가 아니다.
+      final url = whole.replaceFirst(RegExp(r'[.,!?;:)\]}>"\u2019]+$'), '');
+      final tap = TapGestureRecognizer()..onTap = () => _open(url);
+      _taps.add(tap);
+      spans.add(
+        TextSpan(
+          text: url,
+          recognizer: tap,
+          style: widget.style.copyWith(
+            color: widget.linkColor,
+            decoration: TextDecoration.underline,
+            decorationColor: widget.linkColor,
+          ),
+        ),
+      );
+      at = m.start + url.length;
+    }
+    if (at < widget.text.length) {
+      spans.add(TextSpan(text: widget.text.substring(at)));
+    }
+
+    return GestureDetector(
+      onTap: widget.onTapText,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: double.infinity,
+        child: Padding(
+          // 칸의 contentPadding 과 같은 값 — 커서가 들어와도 글자가
+          // 위아래로 움직이지 않는다.
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text.rich(TextSpan(style: widget.style, children: spans)),
         ),
       ),
     );
@@ -1228,7 +1905,18 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                             width: board.badgeKey == b.key ? 2.2 : 1,
                           ),
                         ),
-                        child: Icon(b.icon, size: 19, color: b.color),
+                        child: b.icon == null
+                            // '없음' 은 그림 대신 빈 자리를 보여 준다.
+                            ? SizedBox(
+                                width: 19,
+                                height: 19,
+                                child: Icon(
+                                  Icons.block,
+                                  size: 15,
+                                  color: Colors.black.withValues(alpha: .25),
+                                ),
+                              )
+                            : Icon(b.icon, size: 19, color: b.color),
                       ),
                     ),
                 ],
