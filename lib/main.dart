@@ -18,7 +18,7 @@ class MallangMemoApp extends StatelessWidget {
   Widget build(BuildContext context) {
     const seed = Color(0xFFE9A0B4);
     return MaterialApp(
-      title: '말랑 고양이 메모',
+      title: 'Malang Cat',
       debugShowCheckedModeBanner: false,
       locale: const Locale('ko'),
       supportedLocales: const [Locale('ko'), Locale('en')],

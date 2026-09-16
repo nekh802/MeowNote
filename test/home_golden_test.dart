@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mallang_memo/data/memo_store.dart';
-import 'package:mallang_memo/screens/home_screen.dart';
-import 'package:mallang_memo/widgets/original_artwork.dart';
+import 'package:malang_cat/data/memo_store.dart';
+import 'package:malang_cat/screens/home_screen.dart';
+import 'package:malang_cat/widgets/original_artwork.dart';
 
 /// 화면 전체를 이미지로 떠서 눈으로 확인하기 위한 테스트.
 /// `flutter test --update-goldens` 로 PNG 를 새로 뽑는다.

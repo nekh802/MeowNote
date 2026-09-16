@@ -151,14 +151,14 @@ class BackupService {
     final store = MemoStore.instance;
     final dir = await getTemporaryDirectory();
     final stamp = DateTime.now().toIso8601String().split('T').first;
-    final file = File('${dir.path}/말랑고양이메모-$stamp.json');
+    final file = File('${dir.path}/MalangCat-$stamp.json');
     await file.writeAsString(
       const JsonEncoder.withIndent('  ').convert(store.toBundle()),
     );
     await SharePlus.instance.share(
       ShareParams(
         files: [XFile(file.path)],
-        text: '말랑 고양이 메모 백업 ($stamp)',
+        text: 'Malang Cat 백업 ($stamp)',
       ),
     );
   }

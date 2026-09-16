@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mallang_memo/data/memo_store.dart';
-import 'package:mallang_memo/screens/reference_home.dart';
+import 'package:malang_cat/data/memo_store.dart';
+import 'package:malang_cat/screens/reference_home.dart';
 
 void main() {
   setUpAll(() async {
