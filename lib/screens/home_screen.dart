@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../data/backup.dart';
 import '../data/memo_store.dart';
+import '../data/widget_feed.dart';
 import '../models/memo.dart';
 import '../theme/palette.dart';
 import '../widgets/cat_face.dart';
@@ -41,16 +42,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? _focusEntryId;
   String? _selectedBoardId;
 
+  /// 홈 화면 위젯은 타자 한 글자마다가 아니라 잠깐 쉴 때 한 번 갱신한다.
+  Timer? _widgetTimer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _store.addListener(_scheduleWidget);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => WidgetFeed.publish(_store),
+    );
   }
 
   @override
   void dispose() {
+    _widgetTimer?.cancel();
+    _store.removeListener(_scheduleWidget);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _scheduleWidget() {
+    _widgetTimer?.cancel();
+    _widgetTimer = Timer(
+      const Duration(seconds: 1),
+      () => WidgetFeed.publish(_store),
+    );
   }
 
   @override
@@ -60,7 +78,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.inactive) {
-      unawaited(_store.flush().then((_) => _backup.backupIfChanged()));
+      unawaited(
+        _store.flush().then((_) async {
+          await WidgetFeed.publish(_store);
+          await _backup.backupIfChanged();
+        }),
+      );
     }
   }
 
@@ -342,6 +365,8 @@ class _TopAction extends StatelessWidget {
       message: tooltip,
       child: InkWell(
         onTap: onTap,
+        // 줄 사이를 오갈 때 이 단추에 초점이 걸리지 않게 한다.
+        canRequestFocus: false,
         customBorder: const CircleBorder(),
         child: Container(
           padding: const EdgeInsets.all(9),
@@ -661,6 +686,8 @@ class _AddButton extends StatelessWidget {
       message: '줄 추가',
       child: InkWell(
         onTap: onTap,
+        // 줄 사이를 오갈 때 이 단추에 초점이 걸리지 않게 한다.
+        canRequestFocus: false,
         customBorder: const CircleBorder(),
         child: Container(
           width: 34,
@@ -787,9 +814,11 @@ class _EntryRowState extends State<_EntryRow> {
 
   void _onChanged(String v) {
     if (v.isEmpty) {
-      // 빈 칸에서 지우기 — 윗 줄로 올라간다.
-      _put('');
+      // 빈 칸에서 지우기 — 그 줄을 지우고 윗 줄로 올라간다. 줄이 사라지는
+      // 만큼 카드도 짧아진다. 지우기 전에 초점을 옮겨야 이미 사라진 칸에서
+      // 초점을 찾지 않는다.
       FocusScope.of(context).previousFocus();
+      MemoStore.instance.deleteEntry(widget.entry.id);
       return;
     }
     final text = v.replaceAll(_mark, '');
