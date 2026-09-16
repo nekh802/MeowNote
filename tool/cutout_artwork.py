@@ -39,6 +39,10 @@ class Art:
            넘어가지 않을 만큼만 벌린다.
     erase  무조건 지울 사각형 (LTRB). 색만으로는 여백과 구분되지 않는
            구석에만 쓴다.
+    mirror 오려낸 뒤 한 자리를 좌우로 뒤집어 다른 자리에 얹는다.
+           ((L,T,R,B), 놓을 왼쪽 x) 꼴. 원본에서 옆 그림과 얽혀 도저히
+           갈라낼 수 없는 자리에만 쓴다 — 그림을 새로 그리는 것이 아니라
+           그 아이 몸에서 온 획을 그대로 옮긴다.
     wall   지우기가 넘어가지 못하는 사각형 (LTRB). 옆 그림이 칸에 걸쳐
            들어와 색이 이어질 때, 거기서 시작하거나 그리로 번지는 것을
            막는다. 여백 색 견본에서도 빠지므로, 옆 고양이 흰 털이 여백
@@ -58,10 +62,12 @@ class Art:
            그림 경계는 못 넘는 값.
     """
 
-    def __init__(self, box, sheet=1, grow="tlr", erase=(), wall=(), speck=16,
-                 page=250, dark=165.0, bridge=0, off=16.0, step=20.0):
+    def __init__(self, box, sheet=1, grow="tlr", erase=(), wall=(), mirror=(),
+                 speck=16, page=250, dark=165.0, bridge=0, off=16.0,
+                 step=20.0):
         self.box = box
         self.wall = wall
+        self.mirror = mirror
         self.sheet = sheet
         self.grow = grow
         self.erase = erase
@@ -81,11 +87,12 @@ ARTS = {
     "byeol": Art((1098, 362, 1460, 532), dark=0.0, off=11.0, step=9.0),
     "sol": Art((60, 748, 250, 916)),
     "trio": Art((551, 785, 984, 916)),
-    # 왼쪽 수염이 옆 고양이 수염과 얽혀 있다. 칸을 그만큼 왼쪽으로
-    # 넓히되, 옆 고양이 얼굴에서 지우기가 시작되지 않도록 벽을 세운다.
-    # 벽이 없으면 흰 털끼리 이어져 나비 얼굴까지 지워진다.
-    "nabi": Art((820, 793, 984, 916), speck=20,
-                wall=((804, 770, 820, 930), (820, 785, 838, 862))),
+    # 왼쪽 수염은 옆 고양이 수염과 획이 겹쳐 그려져 있어, 어디서 잘라도
+    # 두 아이의 수염이 한 덩어리로 남는다. 왼쪽은 통째로 비우고, 이 아이
+    # 오른쪽 수염을 뒤집어 그 자리에 얹는다.
+    "nabi": Art((814, 793, 984, 916), speck=20,
+                wall=((798, 770, 814, 930), (814, 785, 836, 930)),
+                mirror=(((960, 852, 982, 892), 814),)),
     # 왼쪽 위로 카드 괘선이 지나간다.
     "kongi": Art((1262, 761, 1468, 915), erase=((1262, 776, 1298, 784),)),
     # 구름과 손글씨 제목. 수채 번짐이 옅어 기준을 더 좁게 잡는다.
@@ -94,9 +101,6 @@ ARTS = {
 
     # 두 번째 장(말랑 고양이 메모 · 두 번째 이야기)의 여섯 마리.
     "haneul": Art((300, 396, 509, 538), sheet=2),
-    # 카드 모서리의 흰 곡선 장식과, 털 바깥으로 삐져나온 물음표를 지운다.
-    "noeul": Art((812, 133, 1001, 282), sheet=2,
-                 erase=((955, 128, 992, 161), (812, 160, 840, 200))),
     # 카드 모서리 장식만 지운다. 예전에는 칸이 커서 왼쪽 아래 수염까지
     # 함께 지워졌다.
     "bori": Art((1040, 388, 1276, 538), sheet=2,
@@ -104,7 +108,9 @@ ARTS = {
     # 카드 괘선과 모서리 장식이 함께 걸린다.
     "mongi": Art((274, 845, 509, 978), sheet=2,
                  erase=((274, 845, 326, 858), (486, 940, 509, 972))),
-    "dalrae": Art((722, 848, 971, 978), sheet=2),
+    # 오른쪽 수염 아래와 오른쪽 아래 구석에 남는 흰 얼룩.
+    "dalrae": Art((722, 848, 971, 978), sheet=2,
+                  erase=((947, 936, 955, 946), (958, 957, 971, 969))),
     # 몸 색이 노란 카드와 가까워 기준을 좁게 잡는다.
     # 외곽선을 점선처럼 끊어 그린 아이. 몸 색도 노란 카드와 가까워
     # 틈을 막고 지운 뒤 되돌린다.
@@ -206,6 +212,7 @@ def cut(name, art):
     cr = min(SIZE[0], right + PAD) if "r" in art.grow else right
     cb = min(SIZE[1], bottom + PAD) if "b" in art.grow else bottom
     w, h, px, raw, src_alpha = read_region(art.sheet, cl, ct, cr, cb)
+    raw = bytearray(raw)
 
     walled = bytearray(w * h)
     for x1, y1, x2, y2 in art.wall:
@@ -268,6 +275,21 @@ def cut(name, art):
     for i in range(w * h):
         if src_alpha[i] < 255:
             alpha[i] = alpha[i] * src_alpha[i] // 255
+    for (sl, st, sr, sb), dl in art.mirror:
+        for y in range(st, sb):
+            for x in range(sl, sr):
+                sx, sy = x - cl, y - ct
+                dx, dy = dl + (sr - 1 - x) - cl, y - ct
+                if not (0 <= sx < w and 0 <= sy < h):
+                    continue
+                if not (0 <= dx < w and 0 <= dy < h):
+                    continue
+                a = alpha[sy * w + sx]
+                if not a:
+                    continue
+                alpha[dy * w + dx] = a
+                j, k = (dy * w + dx) * 3, (sy * w + sx) * 3
+                raw[j:j + 3] = raw[k:k + 3]
     return crop_png(name, art, raw, alpha, w, cl, ct)
 
 

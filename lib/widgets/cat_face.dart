@@ -124,18 +124,6 @@ class CatSpec {
     charm: CatCharm.sparkle,
   );
 
-  /// 눈을 꼭 감은 노랑둥이.
-  static const noeul = CatSpec(
-    id: 'noeul',
-    name: '노을',
-    body: _cream,
-    mark: MarkStyle.greyCap,
-    markColor: _ginger,
-    eyes: EyeStyle.happy,
-    mouth: MouthStyle.w,
-    charm: CatCharm.question,
-  );
-
   /// 별을 달고 놀란 아이.
   static const bori = CatSpec(
     id: 'bori',
@@ -192,7 +180,6 @@ class CatSpec {
     nabi,
     kongi,
     haneul,
-    noeul,
     bori,
     mongi,
     dalrae,

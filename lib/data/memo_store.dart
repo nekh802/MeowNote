@@ -19,7 +19,7 @@ class MemoStore extends ChangeNotifier {
   static final MemoStore instance = MemoStore._();
 
   static const schemaVersion = 1;
-  static const appVersion = '1.3.0';
+  static const appVersion = '1.4.0';
 
   final List<Board> _boards = [];
   final List<Entry> _entries = [];
@@ -40,6 +40,10 @@ class MemoStore extends ChangeNotifier {
   /// 목록에서 카드를 늘어놓는 차례.
   BoardSort _sort = BoardSort.edited;
 
+  /// 이름 순으로 줄 세울 때 어느 글자를 앞에 둘지 정하는 기준. 기기의
+  /// 기본 언어가 한국어면 한글이 앞, 아니면 알파벳이 앞이다.
+  String _uiLanguage = PlatformDispatcher.instance.locale.languageCode;
+
   File? _file;
   Timer? _saveTimer;
   bool _loaded = false;
@@ -50,6 +54,9 @@ class MemoStore extends ChangeNotifier {
   DateTime? get lastBackupAt => _lastBackupAt;
   String get toldStoreVersion => _toldStoreVersion;
   BoardSort get sort => _sort;
+
+  @visibleForTesting
+  set uiLanguage(String code) => _uiLanguage = code;
 
   /// 살아 있는 카드만 순서대로.
   ///
@@ -62,17 +69,35 @@ class MemoStore extends ChangeNotifier {
         // 최근에 손댄 것이 앞.
         BoardSort.edited => b.updatedAt.compareTo(a.updatedAt),
         BoardSort.created => a.createdAt.compareTo(b.createdAt),
-        // 한국어 정렬은 글자 코드 순서가 곧 가나다 순이다. 영어는
-        // 대소문자를 가리지 않고 견준다.
-        BoardSort.name => a.title.toLowerCase().compareTo(
-          b.title.toLowerCase(),
-        ),
+        BoardSort.name => _byName(a.title, b.title),
       };
       // 한 번도 손대지 않은 기본 카드끼리는 때가 같다. 그럴 때는 처음
       // 놓인 차례를 지켜, 갓 깐 기기에서 카드가 거꾸로 서지 않게 한다.
       return by != 0 ? by : a.order.compareTo(b.order);
     });
     return alive;
+  }
+
+  /// 제목으로 줄 세운다.
+  ///
+  /// 기기 기본 언어가 앞에 온다 — 한국어를 쓰면 한글 제목이 먼저, 영어를
+  /// 쓰면 알파벳 제목이 먼저다. 같은 글자끼리는 한글은 글자 코드 순서가
+  /// 곧 가나다 순이고, 알파벳은 대소문자를 가리지 않는다.
+  int _byName(String a, String b) {
+    final ka = _startsHangul(a), kb = _startsHangul(b);
+    if (ka != kb) {
+      final koreanFirst = _uiLanguage == 'ko';
+      return ka == koreanFirst ? -1 : 1;
+    }
+    return a.toLowerCase().compareTo(b.toLowerCase());
+  }
+
+  static bool _startsHangul(String s) {
+    final t = s.trimLeft();
+    if (t.isEmpty) return false;
+    final c = t.codeUnitAt(0);
+    // 완성형 음절과 낱자.
+    return (c >= 0xAC00 && c <= 0xD7A3) || (c >= 0x3131 && c <= 0x318E);
   }
 
   /// 붙박아 둔 카드만, 그리고 나머지만.
@@ -158,7 +183,11 @@ class MemoStore extends ChangeNotifier {
 
   /// 이미 만들어 둔 카드의 글귀를 손본 횟수. 새 값을 올리면 쓰던 기기에서도
   /// [_applyFixups] 가 한 번 돈다.
-  static const fixups = 2;
+  static const fixups = 3;
+
+  /// 묶음마다 어디서 시작하는지. 카드를 걷어내면 묶음 크기가 달라지므로
+  /// 6의 배수로 셈하지 않고 자리를 그대로 적어 둔다.
+  static const _setStarts = [0, 6];
 
   /// 첫 실행에 놓이는 열두 장. 컨셉아트 두 장의 구성 그대로다.
   void _seed({int from = 0}) {
@@ -247,16 +276,6 @@ class MemoStore extends ChangeNotifier {
             lines: <String>[],
           ),
           (
-            title: '마음 비우기',
-            subtitle: '솔직한 마음을 적어요',
-            color: 'blossom',
-            cat: 'noeul',
-            badge: 'heart',
-            pose: CatPose.peekTop,
-            kind: BoardKind.hearts,
-            lines: <String>[],
-          ),
-          (
             title: '번뜩인 아이디어',
             subtitle: '',
             color: 'apricot',
@@ -301,7 +320,8 @@ class MemoStore extends ChangeNotifier {
     // 한 묶음을 같은 때에 놓는다. 마이크로초 차이로 '편집일 순'이
     // 뒤집히지 않게 하려는 것이다.
     final stamp = DateTime.now().toUtc();
-    for (var i = from * 6; i < seeds.length; i++) {
+    final start = from < _setStarts.length ? _setStarts[from] : seeds.length;
+    for (var i = start; i < seeds.length; i++) {
       final s = seeds[i];
       final board = Board.create(
         title: s.title,
@@ -328,6 +348,12 @@ class MemoStore extends ChangeNotifier {
     // 고를 수 없게 된 표시를 쓰던 카드는 남아 있는 것으로 옮긴다.
     const movedBadges = {'flower': 'spark', 'clover': 'sprout'};
     for (final board in _boards) {
+      // 노을과 '마음 비우기'는 걷어냈다. 지운 흔적만 남기므로 예전
+      // 백업에서 되살릴 수 있다.
+      if (board.title == '마음 비우기' && board.subtitle == '솔직한 마음을 적어요') {
+        board.deletedAt ??= DateTime.now().toUtc();
+      }
+      if (board.catId == 'noeul') board.catId = 'mochi';
       if (board.subtitle == '작은 생각을 적어두기') board.subtitle = '';
       if (board.title == '잠깐 쉬어가기') board.subtitle = '천천히 해도 괜찮아';
       final moved = movedBadges[board.badgeKey];
@@ -372,6 +398,22 @@ class MemoStore extends ChangeNotifier {
     _entries.add(entry);
     _bump(at.boardId);
     return entry;
+  }
+
+  /// 빈 메모 한 장을 새로 놓는다. 색과 고양이는 부르는 쪽이 고른다 —
+  /// 저장소가 화면의 색표를 알 이유는 없다.
+  Board addBoard({required String colorKey, required String catId}) {
+    final order =
+        _boards.fold<int>(-1, (m, b) => b.order > m ? b.order : m) + 1;
+    final board = Board.create(
+      title: '새 메모',
+      colorKey: colorKey,
+      catId: catId,
+      order: order,
+    );
+    _boards.add(board);
+    _persist();
+    return board;
   }
 
   void setEntryText(String entryId, String text) {

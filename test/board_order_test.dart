@@ -59,4 +59,26 @@ void main() {
     expect(isNewerVersion('1.2.0', '1.2.0'), isFalse);
     expect(isNewerVersion('1.1.9', '1.2.0'), isFalse);
   });
+
+  test('노을과 마음 비우기는 기본 카드에서 빠졌다', () {
+    final titles = store.boards.map((b) => b.title);
+    expect(titles, isNot(contains('마음 비우기')));
+    expect(store.boards.every((b) => b.catId != 'noeul'), isTrue);
+  });
+
+  test('이름 순은 기기 기본 언어를 앞세운다', () {
+    store.setSort(BoardSort.name);
+    final ko = store.addBoard(colorKey: 'sky', catId: 'mochi');
+    store.updateBoard(ko.id, title: '가나다');
+    final en = store.addBoard(colorKey: 'sky', catId: 'mochi');
+    store.updateBoard(en.id, title: 'Apple');
+
+    store.uiLanguage = 'ko';
+    expect(store.boards.first.title, '가나다');
+    expect(store.boards.last.title, 'Apple');
+
+    store.uiLanguage = 'en';
+    expect(store.boards.first.title, 'Apple');
+    expect(store.boards.last.title, isNot('Apple'));
+  });
 }

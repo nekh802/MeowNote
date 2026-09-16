@@ -72,13 +72,13 @@ void main() {
 
     // 목록 장으로 갔다가 다른 메모를 골라 오면, 적어 둔 글이 남아 있어야
     // 한다. 한 장에 메모 하나만 펼치므로 오갈 때마다 카드가 새로 선다.
-    await tester.tap(find.text('목록'));
+    await tester.tap(find.byTooltip('목록'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('하나씩 해볼까'));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsNWidgets(3));
     expect(find.byTooltip('줄 추가'), findsOneWidget);
-    await tester.tap(find.text('목록'));
+    await tester.tap(find.byTooltip('목록'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('오늘의 메모').last);
     await tester.pumpAndSettle();
@@ -89,7 +89,7 @@ void main() {
       find.byType(HomeScreen),
       matchesGoldenFile('goldens/iphone.png'),
     );
-    await tester.tap(find.text('목록'));
+    await tester.tap(find.byTooltip('목록'));
     await tester.pumpAndSettle();
     await expectLater(
       find.byType(HomeScreen),
@@ -120,7 +120,7 @@ void main() {
     );
 
     // 왼쪽 장 — 제목과 메모 고르는 ∨ 박스.
-    await tester.tap(find.text('목록'));
+    await tester.tap(find.byTooltip('목록'));
     await tester.pumpAndSettle();
     await expectLater(
       find.byType(HomeScreen),
