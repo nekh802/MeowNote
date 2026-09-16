@@ -18,8 +18,11 @@ import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SIZE = (1536, 1024)   # 원본 크기
-SRC = ROOT / "assets" / "malang1.png"
+SIZE = (1536, 1024)   # 원본 크기 — 두 장 모두 같다.
+SHEETS = {
+    1: ROOT / "assets" / "malang1.png",
+    2: ROOT / "assets" / "malang2.png",
+}
 OUT = ROOT / "assets" / "cutouts"
 SHEET = ROOT / "build" / "cutout_check"
 
@@ -31,6 +34,7 @@ class Art:
     """그림 하나를 오려내는 설정.
 
     box    원본 좌표 LTRB. lib/widgets/original_artwork.dart 의 bounds() 와 같다.
+    sheet  어느 원본에서 오려낼지. 1 은 malang1.png, 2 는 malang2.png.
     grow   씨앗 자리를 벌려 둘 변(tlrb). 이웃 카드나 카드 밖 종이까지
            넘어가지 않을 만큼만 벌린다.
     erase  무조건 지울 사각형 (LTRB). 색만으로는 여백과 구분되지 않는
@@ -41,19 +45,24 @@ class Art:
            카드 가장자리는 종이와 섞인 자리라 기본값이 그것까지 포함한다.
            수채 번짐처럼 원래 옅게 그린 그림은 30 으로 낮춘다.
     dark   이보다 어두우면 외곽선으로 보고 멈춘다.
+    bridge 외곽선을 점선처럼 끊어 그린 아이용. 지울 때는 외곽선을 이만큼
+           부풀려 틈을 막고, 다 지운 뒤 그만큼 되돌린다. 틈으로 새는 깊이가
+           이 값으로 묶여 몸통에 얼룩이 남지 않는다.
     off    여백 색에서 이만큼 벗어나면 그림으로 보고 멈춘다.
     step   이웃으로 번질 때 허용하는 색 차이. 종이 그라데이션은 넘고
            그림 경계는 못 넘는 값.
     """
 
-    def __init__(self, box, grow="tlr", erase=(), speck=16, page=250,
-                 dark=165.0, off=16.0, step=20.0):
+    def __init__(self, box, sheet=1, grow="tlr", erase=(), speck=16, page=250,
+                 dark=165.0, bridge=0, off=16.0, step=20.0):
         self.box = box
+        self.sheet = sheet
         self.grow = grow
         self.erase = erase
         self.speck = speck
         self.page = page
         self.dark = dark
+        self.bridge = bridge
         self.off = off
         self.step = step
 
@@ -73,10 +82,27 @@ ARTS = {
     # 구름과 손글씨 제목. 수채 번짐이 옅어 기준을 더 좁게 잡는다.
     "title": Art((493, 22, 1051, 142), grow="tlrb", speck=32, page=30,
                  dark=0.0, off=9.0, step=9.0),
+
+    # 두 번째 장(말랑 고양이 메모 · 두 번째 이야기)의 여섯 마리.
+    "haneul": Art((300, 396, 509, 538), sheet=2),
+    # 카드 모서리의 흰 곡선 장식이 칸에 걸린다.
+    "noeul": Art((812, 133, 1001, 282), sheet=2,
+                 erase=((955, 128, 992, 161),)),
+    "bori": Art((1040, 388, 1276, 538), sheet=2,
+                erase=((1040, 496, 1078, 532),)),
+    # 카드 괘선과 모서리 장식이 함께 걸린다.
+    "mongi": Art((274, 845, 509, 978), sheet=2,
+                 erase=((274, 845, 326, 858), (486, 940, 509, 972))),
+    "dalrae": Art((722, 848, 971, 978), sheet=2),
+    # 몸 색이 노란 카드와 가까워 기준을 좁게 잡는다.
+    # 외곽선을 점선처럼 끊어 그린 아이. 몸 색도 노란 카드와 가까워
+    # 틈을 막고 지운 뒤 되돌린다.
+    "danchu": Art((1302, 574, 1495, 733), sheet=2, bridge=3, off=8.0,
+                  step=9.0, erase=((1450, 574, 1495, 604),)),
 }
 
 
-def read_region(left, top, right, bottom):
+def read_region(sheet, left, top, right, bottom):
     """잘라낸 칸의 (보이는 색, 원본 색, 원본 알파)를 읽는다.
 
     원본 PNG는 종이 여백이 투명이고 그 밑 RGB 에는 엉뚱한 색이 깔려 있다.
@@ -87,8 +113,9 @@ def read_region(left, top, right, bottom):
     crop = ["-crop", f"{w}x{h}+{left}+{top}", "+repage", "-depth", "8"]
 
     def run(*extra):
-        return subprocess.run(["magick", str(SRC)] + crop + list(extra),
-                              check=True, capture_output=True).stdout
+        return subprocess.run(["magick", str(SHEETS[sheet])] + crop
+                              + list(extra), check=True,
+                              capture_output=True).stdout
 
     flat = parse_pnm(run("-background", "white", "-alpha", "remove",
                          "-alpha", "off", "ppm:-"), w, h, 3)
@@ -164,17 +191,20 @@ def cut(name, art):
     ct = max(0, top - PAD) if "t" in art.grow else top
     cr = min(SIZE[0], right + PAD) if "r" in art.grow else right
     cb = min(SIZE[1], bottom + PAD) if "b" in art.grow else bottom
-    w, h, px, raw, src_alpha = read_region(cl, ct, cr, cb)
+    w, h, px, raw, src_alpha = read_region(art.sheet, cl, ct, cr, cb)
 
     border = edge_pixels(w, h)
     paper = paper_colors(px, src_alpha, border, w)
+    lum = [0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]
+           for i in range(0, len(px), 3)]
+    fat = swell(lum, w, h, art.dark, art.bridge) if art.bridge else None
 
     def blocked(i):
+        if fat is not None and fat[i]:
+            return True
         if src_alpha[i] < art.page:
             return False   # 종이 여백 — 색을 따지지 않고 지운다.
-        k = i * 3
-        lum = 0.299 * px[k] + 0.587 * px[k + 1] + 0.114 * px[k + 2]
-        return lum < art.dark or not near_paper(px, i, paper, art.off)
+        return lum[i] < art.dark or not near_paper(px, i, paper, art.off)
 
     outside = bytearray(w * h)
     todo = []
@@ -199,11 +229,14 @@ def cut(name, art):
             outside[j] = 1
             todo.append((nx, ny))
 
+    if fat is not None:
+        shrink(outside, lum, px, paper, art, w, h)
     alpha = bytearray(0 if o else 255 for o in outside)
     for x1, y1, x2, y2 in art.erase:
         for y in range(max(0, y1 - ct), min(h, y2 - ct)):
             for x in range(max(0, x1 - cl), min(w, x2 - cl)):
                 alpha[y * w + x] = 0
+    close_pinholes(alpha, w, h)
     drop_specks(alpha, w, h, art.speck)
     soften(px, alpha, w, h)
     # 원본이 반쯤 투명한 자리는 그만큼 옅게 남긴다.
@@ -211,6 +244,75 @@ def cut(name, art):
         if src_alpha[i] < 255:
             alpha[i] = alpha[i] * src_alpha[i] // 255
     return crop_png(name, art, raw, alpha, w, cl, ct)
+
+
+def swell(lum, w, h, dark, by):
+    """외곽선을 `by` 칸만큼 부풀린 자리. 점선처럼 끊긴 틈을 막는다."""
+    mask = bytearray(1 if v < dark else 0 for v in lum)
+    edge = [i for i, v in enumerate(mask) if v]
+    for _ in range(by):
+        nxt = []
+        for i in edge:
+            x, y = i % w, i // w
+            for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                if 0 <= nx < w and 0 <= ny < h and not mask[ny * w + nx]:
+                    mask[ny * w + nx] = 1
+                    nxt.append(ny * w + nx)
+        edge = nxt
+    return mask
+
+
+def shrink(outside, lum, px, paper, art, w, h):
+    """부풀린 외곽선 자리를 여백 쪽에서 되돌린다.
+
+    여백 색인 칸만 `bridge` 칸까지 되돌리므로, 외곽선 틈으로 새 들어가는
+    깊이도 그만큼에서 멈춘다.
+    """
+    edge = [i for i, o in enumerate(outside) if o]
+    for _ in range(art.bridge):
+        nxt = []
+        for i in edge:
+            x, y = i % w, i // w
+            for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                if not (0 <= nx < w and 0 <= ny < h):
+                    continue
+                j = ny * w + nx
+                if outside[j] or lum[j] < art.dark:
+                    continue
+                if not near_paper(px, j, paper, art.off):
+                    continue
+                outside[j] = 1
+                nxt.append(j)
+        edge = nxt
+
+
+def close_pinholes(alpha, w, h, rounds=2, least=6):
+    """그림 안쪽에 뚫린 자잘한 구멍을 메운다.
+
+    외곽선을 점선처럼 끊어 그린 아이는 그 틈으로 여백 색이 새어 들어가
+    몸통에 얼룩이 남는다. 이웃 여덟 칸 중 대부분이 그림이면 그 픽셀도
+    그림으로 되돌린다. 넓은 여백은 이웃이 모자라 그대로 남는다.
+    """
+    for _ in range(rounds):
+        back = []
+        for y in range(h):
+            for x in range(w):
+                i = y * w + x
+                if alpha[i]:
+                    continue
+                n = 0
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        nx, ny = x + dx, y + dy
+                        if (0 <= nx < w and 0 <= ny < h
+                                and alpha[ny * w + nx] and (dx or dy)):
+                            n += 1
+                if n >= least:
+                    back.append(i)
+        if not back:
+            break
+        for i in back:
+            alpha[i] = 255
 
 
 def drop_specks(alpha, w, h, least):

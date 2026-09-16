@@ -506,10 +506,16 @@ class _BoardCardState extends State<_BoardCard> {
                                               height: 31,
                                             ),
                                           )
-                                        : Text(
-                                            board.title,
-                                            style: _round(24, p.ink),
-                                            overflow: TextOverflow.ellipsis,
+                                        // 자리가 좁으면 줄여서라도 제목은
+                                        // 끝까지 보여 준다.
+                                        : FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            alignment: Alignment.centerLeft,
+                                            child: Text(
+                                              board.title,
+                                              maxLines: 1,
+                                              style: _round(24, p.ink),
+                                            ),
                                           ),
                                   ),
                                 ),
@@ -562,7 +568,11 @@ class _BoardCardState extends State<_BoardCard> {
                             ),
                           // 컨셉아트처럼 빈 줄도 괘선으로 남겨 둔다.
                           for (var i = widget.entries.length; i < minRules; i++)
-                            _EmptyRule(palette: p, onTap: widget.onAdd),
+                            _EmptyRule(
+                              palette: p,
+                              onTap: widget.onAdd,
+                              kind: board.kind,
+                            ),
                         ],
                       ),
                     ),
@@ -666,12 +676,30 @@ class _AddButton extends StatelessWidget {
   }
 }
 
+/// 줄 앞에 놓이는 작은 하트. 두 번째 장의 하트 줄 카드에 쓴다.
+class _HeartBullet extends StatelessWidget {
+  const _HeartBullet({required this.palette});
+
+  final CardPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(right: 12),
+    child: Icon(Icons.favorite, size: 15, color: palette.tint),
+  );
+}
+
 /// 아직 아무것도 없는 자리에 놓이는 괘선.
 class _EmptyRule extends StatelessWidget {
-  const _EmptyRule({required this.palette, required this.onTap});
+  const _EmptyRule({
+    required this.palette,
+    required this.onTap,
+    this.kind = BoardKind.note,
+  });
 
   final CardPalette palette;
   final VoidCallback onTap;
+  final BoardKind kind;
 
   @override
   Widget build(BuildContext context) {
@@ -682,6 +710,16 @@ class _EmptyRule extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: palette.line, width: 1.6)),
         ),
+        child: switch (kind) {
+          // 아직 아무것도 없어도 카드 성격이 보이도록 줄 앞 표시는 그린다.
+          BoardKind.hearts => Row(children: [_HeartBullet(palette: palette)]),
+          BoardKind.checklist => Row(
+            children: [
+              _CheckBox(checked: false, palette: palette, onTap: onTap),
+            ],
+          ),
+          BoardKind.note => null,
+        },
       ),
     );
   }
@@ -747,6 +785,7 @@ class _EntryRowState extends State<_EntryRow> {
               ),
               const SizedBox(width: 12),
             ],
+            if (widget.board.kind == BoardKind.hearts) _HeartBullet(palette: p),
             Expanded(
               child: TextField(
                 controller: _c,

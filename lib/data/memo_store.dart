@@ -25,6 +25,10 @@ class MemoStore extends ChangeNotifier {
   final List<Entry> _entries = [];
 
   String _backgroundKey = 'paper';
+
+  /// 이 기기에 이미 들어온 기본 카드 묶음의 수. 예전 파일에는 없으므로
+  /// 첫 묶음만 받은 것으로 본다.
+  int _seededSets = seedSets;
   String _deviceId = '';
   DateTime? _lastBackupAt;
 
@@ -66,6 +70,12 @@ class MemoStore extends ChangeNotifier {
         await _file!.rename('${_file!.path}.broken');
         _seed();
       }
+      // 쓰던 기기에도 새로 그린 카드 묶음을 한 번만 얹는다. 적어 둔
+      // 메모는 건드리지 않고 뒤에 붙인다.
+      if (_seededSets < seedSets) {
+        _seed(from: _seededSets);
+        _seededSets = seedSets;
+      }
     } else {
       _seed();
     }
@@ -80,97 +90,168 @@ class MemoStore extends ChangeNotifier {
     _boards
       ..clear()
       ..addAll(
-        (j['boards'] as List? ?? [])
-            .map((e) => Board.fromJson(e as Map<String, dynamic>)),
+        (j['boards'] as List? ?? []).map(
+          (e) => Board.fromJson(e as Map<String, dynamic>),
+        ),
       );
     _entries
       ..clear()
       ..addAll(
-        (j['entries'] as List? ?? [])
-            .map((e) => Entry.fromJson(e as Map<String, dynamic>)),
+        (j['entries'] as List? ?? []).map(
+          (e) => Entry.fromJson(e as Map<String, dynamic>),
+        ),
       );
     final settings = (j['settings'] as Map?)?.cast<String, dynamic>() ?? {};
     _backgroundKey = (settings['backgroundKey'] ?? 'paper') as String;
+    _seededSets = (settings['seedSets'] ?? 1) as int;
     _deviceId = (j['deviceId'] ?? '') as String;
     final backup = settings['lastBackupAt'];
     _lastBackupAt = backup == null ? null : DateTime.tryParse(backup as String);
   }
 
-  /// 첫 실행에 놓이는 여섯 장. 컨셉아트의 구성 그대로다.
-  void _seed() {
-    final seeds = <({
-      String title,
-      String subtitle,
-      String color,
-      String cat,
-      String badge,
-      CatPose pose,
-      BoardKind kind,
-      List<String> lines,
-    })>[
-      (
-        title: '오늘의 메모',
-        subtitle: '작은 생각을 적어두기',
-        color: 'blossom',
-        cat: 'mochi',
-        badge: 'heart',
-        pose: CatPose.peekTop,
-        kind: BoardKind.note,
-        lines: <String>[],
-      ),
-      (
-        title: '하나씩 해볼까',
-        subtitle: '',
-        color: 'apricot',
-        cat: 'dalgi',
-        badge: 'sprout',
-        pose: CatPose.peekBottom,
-        kind: BoardKind.checklist,
-        lines: ['책 읽기', '산책하기', '메모 정리'],
-      ),
-      (
-        title: '잠깐 쉬어가기',
-        subtitle: '천천히 해도 괜찮아',
-        color: 'sky',
-        cat: 'byeol',
-        badge: 'moon',
-        pose: CatPose.watermark,
-        kind: BoardKind.note,
-        lines: <String>[],
-      ),
-      (
-        title: '문득 떠오른 생각',
-        subtitle: '',
-        color: 'lilac',
-        cat: 'sol',
-        badge: 'bulb',
-        pose: CatPose.peekLeft,
-        kind: BoardKind.note,
-        lines: <String>[],
-      ),
-      (
-        title: '오늘의 기분',
-        subtitle: '',
-        color: 'mint',
-        cat: 'nabi',
-        badge: 'smile',
-        pose: CatPose.trio,
-        kind: BoardKind.note,
-        lines: <String>[],
-      ),
-      (
-        title: '나에게 한마디',
-        subtitle: '오늘도 잘했어',
-        color: 'butter',
-        cat: 'kongi',
-        badge: 'heart',
-        pose: CatPose.peekBottom,
-        kind: BoardKind.note,
-        lines: <String>[],
-      ),
-    ];
+  /// 지금까지 넣어 둔 기본 카드 묶음의 수. 이미 쓰던 기기에도 새로 추가된
+  /// 묶음이 한 번은 들어오도록 [load] 에서 이 값을 비교한다.
+  static const seedSets = 2;
 
-    for (var i = 0; i < seeds.length; i++) {
+  /// 첫 실행에 놓이는 열두 장. 컨셉아트 두 장의 구성 그대로다.
+  void _seed({int from = 0}) {
+    final seeds =
+        <
+          ({
+            String title,
+            String subtitle,
+            String color,
+            String cat,
+            String badge,
+            CatPose pose,
+            BoardKind kind,
+            List<String> lines,
+          })
+        >[
+          (
+            title: '오늘의 메모',
+            subtitle: '작은 생각을 적어두기',
+            color: 'blossom',
+            cat: 'mochi',
+            badge: 'heart',
+            pose: CatPose.peekTop,
+            kind: BoardKind.note,
+            lines: <String>[],
+          ),
+          (
+            title: '하나씩 해볼까',
+            subtitle: '',
+            color: 'apricot',
+            cat: 'dalgi',
+            badge: 'sprout',
+            pose: CatPose.peekBottom,
+            kind: BoardKind.checklist,
+            lines: ['책 읽기', '산책하기', '메모 정리'],
+          ),
+          (
+            title: '잠깐 쉬어가기',
+            subtitle: '천천히 해도 괜찮아',
+            color: 'sky',
+            cat: 'byeol',
+            badge: 'moon',
+            pose: CatPose.watermark,
+            kind: BoardKind.note,
+            lines: <String>[],
+          ),
+          (
+            title: '문득 떠오른 생각',
+            subtitle: '',
+            color: 'lilac',
+            cat: 'sol',
+            badge: 'bulb',
+            pose: CatPose.peekLeft,
+            kind: BoardKind.note,
+            lines: <String>[],
+          ),
+          (
+            title: '오늘의 기분',
+            subtitle: '',
+            color: 'mint',
+            cat: 'nabi',
+            badge: 'smile',
+            pose: CatPose.trio,
+            kind: BoardKind.note,
+            lines: <String>[],
+          ),
+          (
+            title: '나에게 한마디',
+            subtitle: '오늘도 잘했어',
+            color: 'butter',
+            cat: 'kongi',
+            badge: 'heart',
+            pose: CatPose.peekBottom,
+            kind: BoardKind.note,
+            lines: <String>[],
+          ),
+          // 두 번째 이야기.
+          (
+            title: '기분 좋은 시작',
+            subtitle: '오늘의 작은 목표',
+            color: 'sky',
+            cat: 'haneul',
+            badge: 'spark',
+            pose: CatPose.peekBottom,
+            kind: BoardKind.hearts,
+            lines: <String>[],
+          ),
+          (
+            title: '마음 비우기',
+            subtitle: '솔직한 마음을 적어요',
+            color: 'blossom',
+            cat: 'noeul',
+            badge: 'heart',
+            pose: CatPose.peekTop,
+            kind: BoardKind.hearts,
+            lines: <String>[],
+          ),
+          (
+            title: '번뜩인 아이디어',
+            subtitle: '',
+            color: 'apricot',
+            cat: 'bori',
+            badge: 'bulb',
+            pose: CatPose.peekLeft,
+            kind: BoardKind.note,
+            lines: <String>[],
+          ),
+          (
+            title: '차분히 정리하기',
+            subtitle: '',
+            color: 'lilac',
+            cat: 'mongi',
+            badge: 'flower',
+            pose: CatPose.peekBottom,
+            kind: BoardKind.checklist,
+            lines: <String>[],
+          ),
+          (
+            title: '괜찮아, 천천히',
+            subtitle: '하나씩 해도 괜찮아',
+            color: 'mint',
+            cat: 'dalrae',
+            badge: 'clover',
+            pose: CatPose.peekBottom,
+            kind: BoardKind.note,
+            lines: <String>[],
+          ),
+          (
+            title: '내일 또 만나',
+            subtitle: '내일의 나에게 남기는 말',
+            color: 'butter',
+            cat: 'danchu',
+            badge: 'heart',
+            pose: CatPose.peekTop,
+            kind: BoardKind.note,
+            lines: <String>[],
+          ),
+        ];
+
+    for (var i = from * 6; i < seeds.length; i++) {
       final s = seeds[i];
       final board = Board.create(
         title: s.title,
@@ -184,7 +265,9 @@ class MemoStore extends ChangeNotifier {
       );
       _boards.add(board);
       for (var k = 0; k < s.lines.length; k++) {
-        _entries.add(Entry.create(boardId: board.id, text: s.lines[k], order: k));
+        _entries.add(
+          Entry.create(boardId: board.id, text: s.lines[k], order: k),
+        );
       }
     }
   }
@@ -313,6 +396,7 @@ class MemoStore extends ChangeNotifier {
     'counts': {'boards': _boards.length, 'entries': _entries.length},
     'settings': {
       'backgroundKey': _backgroundKey,
+      'seedSets': _seededSets,
       'lastBackupAt': _lastBackupAt?.toIso8601String(),
     },
     'boards': _boards.map((b) => b.toJson()).toList(),

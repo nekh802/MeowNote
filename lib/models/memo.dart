@@ -15,8 +15,17 @@ DateTime _parse(Object? v) =>
 DateTime? _parseOrNull(Object? v) =>
     v == null ? null : DateTime.parse(v as String).toUtc();
 
-/// 카드 한 장의 성격. 메모는 줄글, 체크리스트는 할 일 목록.
-enum BoardKind { note, checklist }
+/// 카드 한 장의 성격.
+enum BoardKind {
+  /// 줄글 — 줄 앞에 아무것도 없다.
+  note,
+
+  /// 할 일 목록 — 줄 앞에 네모 칸.
+  checklist,
+
+  /// 줄 앞에 작은 하트. 두 번째 장의 '기분 좋은 시작', '마음 비우기'.
+  hearts,
+}
 
 /// 고양이가 카드 어디에 어떻게 앉는지.
 ///

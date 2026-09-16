@@ -23,6 +23,13 @@ class OriginalArtwork extends StatelessWidget {
     'nabi' => const Rect.fromLTRB(830, 793, 984, 916),
     'kongi' => const Rect.fromLTRB(1262, 761, 1468, 915),
     'title' => const Rect.fromLTRB(493, 22, 1051, 142),
+    // 두 번째 장.
+    'haneul' => const Rect.fromLTRB(300, 396, 509, 538),
+    'noeul' => const Rect.fromLTRB(812, 133, 1001, 282),
+    'bori' => const Rect.fromLTRB(1040, 388, 1276, 538),
+    'mongi' => const Rect.fromLTRB(274, 845, 509, 978),
+    'dalrae' => const Rect.fromLTRB(722, 848, 971, 978),
+    'danchu' => const Rect.fromLTRB(1302, 574, 1495, 733),
     _ => const Rect.fromLTRB(316, 126, 500, 244),
   };
 
@@ -39,6 +46,12 @@ class OriginalArtwork extends StatelessWidget {
     'nabi',
     'kongi',
     'title',
+    'haneul',
+    'noeul',
+    'bori',
+    'mongi',
+    'dalrae',
+    'danchu',
   };
 
   @override

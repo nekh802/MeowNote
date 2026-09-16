@@ -110,7 +110,94 @@ class CatSpec {
     charm: CatCharm.heart,
   );
 
-  static const all = <CatSpec>[mochi, dalgi, byeol, sol, nabi, kongi];
+  // 두 번째 장(두 번째 이야기)의 여섯 마리.
+
+  /// 하늘색 귀 — 첫 카드 아래에서 올라온다.
+  static const haneul = CatSpec(
+    id: 'haneul',
+    name: '하늘',
+    body: _cream,
+    mark: MarkStyle.earPatch,
+    markColor: Color(0xFFBBD7F2),
+    eyes: EyeStyle.happy,
+    mouth: MouthStyle.openSmile,
+    charm: CatCharm.sparkle,
+  );
+
+  /// 눈을 꼭 감은 노랑둥이.
+  static const noeul = CatSpec(
+    id: 'noeul',
+    name: '노을',
+    body: _cream,
+    mark: MarkStyle.greyCap,
+    markColor: _ginger,
+    eyes: EyeStyle.happy,
+    mouth: MouthStyle.w,
+    charm: CatCharm.question,
+  );
+
+  /// 별을 달고 놀란 아이.
+  static const bori = CatSpec(
+    id: 'bori',
+    name: '보리',
+    body: _ginger,
+    mark: MarkStyle.none,
+    markColor: _ginger,
+    eyes: EyeStyle.wide,
+    mouth: MouthStyle.openSmile,
+    charm: CatCharm.sparkle,
+  );
+
+  /// 한쪽 귀가 회색인 아이 — 꾸벅꾸벅.
+  static const mongi = CatSpec(
+    id: 'mongi',
+    name: '몽이',
+    body: _cream,
+    mark: MarkStyle.sidePatch,
+    markColor: _grey,
+    eyes: EyeStyle.open,
+    mouth: MouthStyle.w,
+    charm: CatCharm.zzz,
+  );
+
+  /// 앞발을 모으고 윙크하는 아이.
+  static const dalrae = CatSpec(
+    id: 'dalrae',
+    name: '달래',
+    body: _cream,
+    mark: MarkStyle.earPatch,
+    markColor: _ginger,
+    eyes: EyeStyle.wink,
+    mouth: MouthStyle.w,
+    charm: CatCharm.sparkle,
+  );
+
+  /// 손을 흔드는 아이 — 내일 또 만나.
+  static const danchu = CatSpec(
+    id: 'danchu',
+    name: '단추',
+    body: _ginger,
+    mark: MarkStyle.greyCap,
+    markColor: _ginger,
+    eyes: EyeStyle.open,
+    mouth: MouthStyle.openSmile,
+    charm: CatCharm.heart,
+  );
+
+  static const all = <CatSpec>[
+    mochi,
+    dalgi,
+    byeol,
+    sol,
+    nabi,
+    kongi,
+    haneul,
+    noeul,
+    bori,
+    mongi,
+    dalrae,
+    danchu,
+  ];
 
   static CatSpec byId(String id) =>
       all.firstWhere((c) => c.id == id, orElse: () => mochi);

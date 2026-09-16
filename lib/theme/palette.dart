@@ -107,6 +107,22 @@ class CardBadge {
     CardBadge(key: 'star', icon: Icons.star_rounded, color: Color(0xFFE9B85C)),
     CardBadge(key: 'paw', icon: Icons.pets, color: Color(0xFFC9A08E)),
     CardBadge(key: 'cloud', icon: Icons.cloud, color: Color(0xFF9FC2E0)),
+    // 두 번째 장에서 쓰는 것들.
+    CardBadge(
+      key: 'spark',
+      icon: Icons.auto_awesome,
+      color: Color(0xFFF2A0AE),
+    ),
+    CardBadge(
+      key: 'flower',
+      icon: Icons.local_florist,
+      color: Color(0xFFB39BD8),
+    ),
+    CardBadge(
+      key: 'clover',
+      icon: Icons.filter_vintage,
+      color: Color(0xFF8FBF87),
+    ),
   ];
 
   static CardBadge byKey(String key) =>
