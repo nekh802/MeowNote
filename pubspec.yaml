@@ -1,0 +1,49 @@
+name: mallang_memo
+description: "말랑 고양이 메모 — 맥북과 아이폰에서 함께 쓰는 고양이 메모장"
+publish_to: 'none'
+
+# 빌드 번호(+N)는 스토어에 올릴 때마다 올린다.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  crypto: ^3.0.6          # 백업 내용 해시 (무변경이면 건너뛰기)
+  uuid: ^4.5.1            # 메모 id — 시간순으로 정렬되는 UUIDv7
+  path_provider: ^2.1.5   # 로컬 우선 저장소 파일 위치
+  shared_preferences: ^2.5.5
+  share_plus: ^13.3.0     # 백업 번들 내보내기 (BackupTarget 첫 구현체)
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # 서체는 번들로 넣는다. 첫 실행에 네트워크를 타지 않고, 기기마다
+  # 같은 모양으로 렌더링된다. 둘 다 OFL 이라 상업 배포에 문제없다.
+  fonts:
+    # 제목·카드 이름. 사용자가 아무 한글이나 입력할 수 있어 전체 글자를 담는다.
+    - family: Jua
+      fonts:
+        - asset: assets/fonts/Jua-Regular.ttf
+    # 모서리 장식 문구 전용. 쓰는 글자가 정해져 있어 그만큼만 남겼다 (11KB).
+    - family: GamjaFlower
+      fonts:
+        - asset: assets/fonts/GamjaFlower-Subset.ttf
+
+  assets:
+    - assets/malang1.png
+    # 원본에서 외곽선 바깥만 투명하게 오려 둔 그림 — tool/cutout_artwork.py
+    - assets/cutouts/
+    - assets/malang_reference_rgb.png
+    - assets/fonts/OFL.txt
