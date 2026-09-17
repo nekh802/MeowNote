@@ -19,7 +19,7 @@ class MemoStore extends ChangeNotifier {
   static final MemoStore instance = MemoStore._();
 
   static const schemaVersion = 1;
-  static const appVersion = '1.7.0';
+  static const appVersion = '1.9.1';
 
   final List<Board> _boards = [];
   final List<Entry> _entries = [];
@@ -384,20 +384,30 @@ class MemoStore extends ChangeNotifier {
     return entry;
   }
 
-  /// 어떤 줄 바로 아래에 빈 줄을 끼운다. 줄 끝에서 엔터를 누르면
-  /// 맨 아래가 아니라 그 자리 다음에 새 줄이 와야 한다.
-  Entry insertEntryAfter(String entryId) {
+  /// 어떤 줄 바로 아래에 새 줄들을 끼운다.
+  ///
+  /// 엔터는 빈 줄 하나, 여러 줄을 붙여넣으면 그 줄 수만큼이다. 줄마다
+  /// 따로 끼워야 붙여넣은 글이 한 줄에 뭉치지 않는다.
+  List<Entry> insertEntriesAfter(String entryId, List<String> texts) {
     final at = _entry(entryId);
     if (at == null) throw StateError('없는 줄 아래에는 끼울 수 없어요');
-    final after = entriesOf(at.boardId).where((e) => e.order > at.order);
-    for (final e in after) {
-      e.order += 1;
+    final room = texts.isEmpty ? 1 : texts.length;
+    for (final e in entriesOf(at.boardId).where((e) => e.order > at.order)) {
+      e.order += room;
       e.touch();
     }
-    final entry = Entry.create(boardId: at.boardId, order: at.order + 1);
-    _entries.add(entry);
+    final made = <Entry>[];
+    for (var i = 0; i < room; i++) {
+      final entry = Entry.create(
+        boardId: at.boardId,
+        text: i < texts.length ? texts[i] : '',
+        order: at.order + 1 + i,
+      );
+      _entries.add(entry);
+      made.add(entry);
+    }
     _bump(at.boardId);
-    return entry;
+    return made;
   }
 
   /// 빈 메모 한 장을 새로 놓는다. 색과 고양이는 부르는 쪽이 고른다 —
@@ -493,6 +503,19 @@ class MemoStore extends ChangeNotifier {
       final b = _board(id);
       if (b == null || !b.isAlive) continue;
       b.deletedAt = now;
+      b.touch();
+      hit = true;
+    }
+    if (hit) _persist();
+  }
+
+  /// 방금 지운 카드를 되살린다.
+  void restoreBoards(Iterable<String> boardIds) {
+    var hit = false;
+    for (final id in boardIds) {
+      final b = _board(id);
+      if (b == null || b.isAlive) continue;
+      b.deletedAt = null;
       b.touch();
       hit = true;
     }

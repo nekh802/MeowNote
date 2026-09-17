@@ -64,8 +64,7 @@ void main() {
     await precacheArtwork(tester);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    expect(find.byTooltip('줄 추가'), findsOneWidget);
-    await tester.tap(find.byTooltip('줄 추가'));
+    await tester.tap(find.bySemanticsLabel('줄 추가').first);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '오늘의 작은 행복');
     await tester.pumpAndSettle();
@@ -77,7 +76,6 @@ void main() {
     await tester.tap(find.text('하나씩 해볼까'));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsNWidgets(3));
-    expect(find.byTooltip('줄 추가'), findsOneWidget);
     await tester.tap(find.byTooltip('목록'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('오늘의 메모').last);

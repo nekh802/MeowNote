@@ -214,16 +214,28 @@ class BackgroundTheme {
   );
 
   /// 위는 온전한 흰색, 아래로 갈수록 살짝 따뜻해지는 오프화이트.
+  /// 이름은 '웜화이트'로 바뀌었지만 열쇠는 그대로 둔다 — 바꾸면 이미
+  /// 이 배경을 골라 둔 기기가 처음 배경으로 되돌아간다.
   static const white = BackgroundTheme(
     key: 'white',
-    label: '화이트',
+    label: '웜화이트',
     top: Color(0xFFFFFFFF),
     bottom: Color(0xFFF4F0EC),
+  );
+
+  /// 같은 흰색이되 아래로 갈수록 은빛이 도는 회백색. 파랑 기를 빼고
+  /// 세 색을 나란히 두어 강철이나 은처럼 중립적인 잿빛이 된다.
+  static const coolWhite = BackgroundTheme(
+    key: 'coolWhite',
+    label: '쿨화이트',
+    top: Color(0xFFFFFFFF),
+    bottom: Color(0xFFDEDEDD),
   );
 
   static const all = <BackgroundTheme>[
     paper,
     white,
+    coolWhite,
     cream,
     peach,
     lavender,

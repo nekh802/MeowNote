@@ -55,6 +55,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 홈 화면 위젯은 타자 한 글자마다가 아니라 잠깐 쉴 때 한 번 갱신한다.
   Timer? _widgetTimer;
 
+  /// 지금 사라지는 중인 카드. 지우는 동안만 값이 들어 있다.
+  String? _vanishingBoardId;
+  static const _vanishDuration = Duration(milliseconds: 240);
+
   /// 왼쪽이 목록, 오른쪽이 펼친 메모. 켤 때는 메모부터 보이고, 화면을
   /// 오른쪽으로 쓸면 목록이 따라 나온다.
   late final PageController _pages = PageController(initialPage: memoPage);
@@ -144,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       setState(() => _store.togglePin(b.id));
                     },
                     onPickBackground: _openBackgroundSheet,
-                    onExport: _export,
+                    onExport: _backupToNotes,
                     onSort: _openMoreSheet,
                     onAddBoard: _addBoard,
                     matches: _matches,
@@ -153,16 +157,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   if (selected == null)
                     const SizedBox()
                   else
-                    _MemoPage(
-                      bg: bg,
-                      board: selected,
-                      entries: _store.entriesOf(selected.id),
-                      focusEntryId: _focusEntryId,
-                      onBack: _openLibrary,
-                      onAdd: () => _addEntry(selected),
-                      onEnter: _splitEntry,
-                      onExport: () => _exportBoard(selected),
-                      onOpenSettings: () => _openBoardSheet(selected),
+                    _Vanishing(
+                      gone: _vanishingBoardId == selected.id,
+                      duration: _vanishDuration,
+                      child: _MemoPage(
+                        bg: bg,
+                        board: selected,
+                        entries: _store.entriesOf(selected.id),
+                        focusEntryId: _focusEntryId,
+                        onBack: _openLibrary,
+                        onAdd: () => _addEntry(selected),
+                        onEnter: _splitEntry,
+                        onExport: () => _exportBoard(selected),
+                        onDelete: () => _deleteBoard(selected),
+                        onOpenSettings: () => _openBoardSheet(selected),
+                      ),
                     ),
                 ],
               ),
@@ -222,10 +231,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() => _focusEntryId = entry.id);
   }
 
-  /// 엔터 — 누른 줄 바로 아래에 새 줄을 놓고 커서를 옮긴다.
-  void _splitEntry(Entry at) {
-    final entry = _store.insertEntryAfter(at.id);
-    setState(() => _focusEntryId = entry.id);
+  /// 엔터와 붙여넣기 — 누른 줄 아래에 줄을 놓고 커서를 마지막으로 옮긴다.
+  /// [rest] 가 비면 엔터 한 번, 여럿이면 붙여넣은 나머지 줄들이다.
+  void _splitEntry(Entry at, List<String> rest) {
+    final made = _store.insertEntriesAfter(at.id, rest);
+    setState(() => _focusEntryId = made.last.id);
   }
 
   /// 메모 전부를 담은 백업 파일을 공유 시트에 넘긴다.
@@ -325,6 +335,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   _openDeleteSheet();
                 },
               ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.description_outlined),
+                title: const Text('백업 파일 내보내기'),
+                subtitle: const Text('되돌릴 수 있는 파일 한 벌'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _export();
+                },
+              ),
               const SizedBox(height: 22),
               const _SheetLabel('선물하기'),
               ListTile(
@@ -342,6 +362,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  /// 펼쳐 둔 메모 한 장을 지운다.
+  ///
+  /// 묻지 않고 바로 지우되, 카드가 작아지며 사라지는 동안 눈이 따라갈
+  /// 틈을 준다. 지운 흔적만 남기므로 바로 되돌릴 수도 있다.
+  Future<void> _deleteBoard(Board board) async {
+    setState(() => _vanishingBoardId = board.id);
+    await Future<void>.delayed(_vanishDuration);
+    if (!mounted) return;
+    setState(() {
+      _vanishingBoardId = null;
+      _store.deleteBoards([board.id]);
+      _selectedBoardId = _store.boards.firstOrNull?.id;
+    });
+    _openLibrary();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("'${board.title}' 을(를) 지웠어요"),
+        action: SnackBarAction(
+          label: '되돌리기',
+          onPressed: () => setState(() {
+            _store.restoreBoards([board.id]);
+            _selectedBoardId = board.id;
+          }),
+        ),
+      ),
+    );
+  }
+
+  /// 가진 메모를 모두 글 한 덩이로 옮겨 공유 창에 넘긴다.
+  ///
+  /// 애플이 다른 앱에서 메모 앱에 글을 써 넣는 길을 열어 두지 않아,
+  /// 받는 곳으로 '메모'를 고르는 마지막 한 걸음은 사람이 한다.
+  Future<void> _backupToNotes() async {
+    try {
+      await shareAllBoards(_store.boards, _store.entriesOf);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('보내지 못했어요: $e')));
+    }
   }
 
   /// 여러 장을 골라 한 번에 지운다.
@@ -762,8 +826,10 @@ class _PickerBox extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                board?.title ?? '메모 고르기',
-                style: _round(17, p?.ink ?? bg.onBackground),
+                // 앱 이름을 여기에 못 박는다. 어느 메모를 펼쳐 두었는지는
+                // 아래 블록의 체크 표시가 알려 준다.
+                '말랑 고양이 메모',
+                style: _round(19, p?.ink ?? bg.onBackground),
               ),
             ),
             AnimatedRotation(
@@ -779,6 +845,31 @@ class _PickerBox extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 지워지는 카드가 작아지며 사라지는 동안만 쓰이는 껍데기.
+class _Vanishing extends StatelessWidget {
+  const _Vanishing({
+    required this.gone,
+    required this.duration,
+    required this.child,
+  });
+
+  final bool gone;
+  final Duration duration;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => AnimatedScale(
+    scale: gone ? .88 : 1,
+    duration: duration,
+    curve: Curves.easeInCubic,
+    child: AnimatedOpacity(
+      opacity: gone ? 0 : 1,
+      duration: duration,
+      child: child,
+    ),
+  );
 }
 
 /// 목록 위에 붙는 작은 이름표.
@@ -973,6 +1064,7 @@ class _MemoPage extends StatelessWidget {
     required this.onAdd,
     required this.onEnter,
     required this.onExport,
+    required this.onDelete,
     required this.onOpenSettings,
   });
 
@@ -982,8 +1074,11 @@ class _MemoPage extends StatelessWidget {
   final String? focusEntryId;
   final VoidCallback onBack;
   final VoidCallback onAdd;
-  final void Function(Entry) onEnter;
+  final void Function(Entry, List<String>) onEnter;
   final VoidCallback onExport;
+
+  /// 이 메모를 통째로 지운다.
+  final VoidCallback onDelete;
   final VoidCallback onOpenSettings;
 
   @override
@@ -1032,6 +1127,7 @@ class _MemoPage extends StatelessWidget {
                       onAdd: onAdd,
                       onEnter: onEnter,
                       onExport: onExport,
+                      onDelete: onDelete,
                       onOpenSettings: onOpenSettings,
                     ),
                   ],
@@ -1065,14 +1161,14 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 112,
+      height: 58,
       child: Stack(
         alignment: Alignment.center,
         children: [
           if (showNotes) ...[
             Positioned(
               left: 4,
-              top: 24,
+              top: 2,
               child: Transform.rotate(
                 angle: -.05,
                 child: _CornerNote(
@@ -1084,7 +1180,7 @@ class _Header extends StatelessWidget {
             ),
             Positioned(
               right: 4,
-              top: 20,
+              top: 0,
               child: Transform.rotate(
                 angle: .04,
                 child: _CornerNote(
@@ -1095,14 +1191,6 @@ class _Header extends StatelessWidget {
               ),
             ),
           ],
-          Semantics(
-            label: '말랑 고양이 메모',
-            header: true,
-            child: const FittedBox(
-              fit: BoxFit.scaleDown,
-              child: OriginalArtwork(art: 'title', width: 558),
-            ),
-          ),
           Positioned(
             right: 0,
             bottom: 2,
@@ -1117,7 +1205,7 @@ class _Header extends StatelessWidget {
                 const SizedBox(width: 6),
                 _TopAction(
                   icon: Icons.ios_share,
-                  tooltip: '백업 파일 내보내기',
+                  tooltip: '전체 백업하기',
                   bg: bg,
                   onTap: onExport,
                 ),
@@ -1198,6 +1286,7 @@ class _BoardCard extends StatefulWidget {
     required this.onAdd,
     required this.onEnter,
     required this.onExport,
+    required this.onDelete,
     required this.onOpenSettings,
   });
 
@@ -1205,8 +1294,11 @@ class _BoardCard extends StatefulWidget {
   final List<Entry> entries;
   final String? focusEntryId;
   final VoidCallback onAdd;
-  final void Function(Entry) onEnter;
+  final void Function(Entry, List<String>) onEnter;
   final VoidCallback onExport;
+
+  /// 이 메모를 통째로 지운다.
+  final VoidCallback onDelete;
   final VoidCallback onOpenSettings;
 
   @override
@@ -1422,7 +1514,8 @@ class _BoardCardState extends State<_BoardCard> {
                               palette: p,
                               autofocus:
                                   widget.entries[i].id == widget.focusEntryId,
-                              onEnter: () => widget.onEnter(widget.entries[i]),
+                              onEnter: (rest) =>
+                                  widget.onEnter(widget.entries[i], rest),
                             ),
                           // 컨셉아트처럼 빈 줄도 괘선으로 남겨 둔다. 여기엔
                           // 줄 앞 표시를 찍지 않는다 — 아직 만든 줄이 아니라
@@ -1446,12 +1539,12 @@ class _BoardCardState extends State<_BoardCard> {
                         ),
                       ),
 
-                    // 줄 추가
+                    // 이 메모 지우기
                     Positioned(
                       left: catOnRight ? 16 : null,
                       right: catOnRight ? null : 16,
                       bottom: 14,
-                      child: _AddButton(palette: p, onTap: widget.onAdd),
+                      child: _TrashButton(palette: p, onTap: widget.onDelete),
                     ),
                   ],
                 ),
@@ -1617,8 +1710,9 @@ class _GridPainter extends CustomPainter {
   bool shouldRepaint(covariant _GridPainter old) => old.color != color;
 }
 
-class _AddButton extends StatelessWidget {
-  const _AddButton({required this.palette, required this.onTap});
+/// 이 메모를 통째로 지우는 단추. 줄은 엔터로 늘리고 빈 괘선을 눌러 쓴다.
+class _TrashButton extends StatelessWidget {
+  const _TrashButton({required this.palette, required this.onTap});
 
   final CardPalette palette;
   final VoidCallback onTap;
@@ -1626,7 +1720,7 @@ class _AddButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: '줄 추가',
+      message: '이 메모 지우기',
       child: InkWell(
         onTap: onTap,
         // 줄 사이를 오갈 때 이 단추에 초점이 걸리지 않게 한다.
@@ -1646,7 +1740,11 @@ class _AddButton extends StatelessWidget {
               ),
             ],
           ),
-          child: const Icon(Icons.add_rounded, size: 21, color: Colors.white),
+          child: const Icon(
+            Icons.delete_outline_rounded,
+            size: 19,
+            color: Colors.white,
+          ),
         ),
       ),
     );
@@ -1712,13 +1810,19 @@ class _EmptyRule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        height: _ruleHeight,
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: palette.line, width: _rowRule),
+    // 카드에 + 단추가 없으므로, 빈 괘선을 누르는 것이 줄을 더하는 길이다.
+    // 눈으로 보이지 않아도 손끝과 보이스오버가 찾을 수 있어야 한다.
+    return Semantics(
+      label: '줄 추가',
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          height: _ruleHeight,
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: palette.line, width: _rowRule),
+            ),
           ),
         ),
       ),
@@ -1741,8 +1845,9 @@ class _EntryRow extends StatefulWidget {
   final CardPalette palette;
   final bool autofocus;
 
-  /// 엔터를 누른 순간 — 이 줄 바로 아래로 이어 쓴다.
-  final VoidCallback onEnter;
+  /// 엔터를 누르거나 여러 줄을 붙여넣은 순간. 첫 줄은 이 칸에 남고,
+  /// 나머지 줄들이 넘어간다.
+  final void Function(List<String>) onEnter;
 
   @override
   State<_EntryRow> createState() => _EntryRowState();
@@ -1868,11 +1973,13 @@ class _EntryRowState extends State<_EntryRow> {
 
     final text = v.replaceAll(_mark, '');
     if (text.contains('\n')) {
-      // 칸 안에서 줄을 바꾸는 대신 바로 아랫줄로 이어 쓴다.
-      final kept = text.replaceAll('\n', '');
-      _put(kept);
-      _save(kept);
-      widget.onEnter();
+      // 칸 안에서 줄을 바꾸는 대신 줄마다 제 칸을 준다. 긴 글을 붙여넣어도
+      // 한 줄에 뭉치지 않는다.
+      final parts = text.split('\n');
+      final head = parts.first;
+      _put(head);
+      _save(head);
+      widget.onEnter(parts.skip(1).toList());
       return;
     }
     // 표식이 사라졌으면 되살린다. 조합 중에는 손대지 않는다 — 값을

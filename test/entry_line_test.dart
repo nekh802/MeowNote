@@ -18,6 +18,20 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// 줄 하나를 더한다. 카드에 + 단추가 없으므로, 빈 괘선이 남아 있으면
+  /// 눌러서, 다 찼으면 마지막 칸에서 엔터로 늘린다.
+  Future<void> addRow(WidgetTester tester) async {
+    final rules = find.bySemanticsLabel('줄 추가');
+    if (rules.evaluate().isNotEmpty) {
+      await tester.tap(rules.first);
+    } else {
+      final field = find.byType(TextField).last;
+      final now = tester.widget<TextField>(field).controller!.text;
+      await tester.enterText(field, '$now\n');
+    }
+    await tester.pumpAndSettle();
+  }
+
   /// 저장은 400ms 뒤에 한 번에 한다. 그 타이머를 남기지 않고 끝낸다.
   Future<void> close(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox());
@@ -28,8 +42,7 @@ void main() {
     await open(tester, const Size(390, 844));
     final board = MemoStore.instance.boards.first;
 
-    await tester.tap(find.byTooltip('줄 추가'));
-    await tester.pumpAndSettle();
+    await addRow(tester);
     await tester.enterText(find.byType(TextField).first, '첫 줄\n');
     await tester.pumpAndSettle();
 
@@ -44,8 +57,7 @@ void main() {
     final board = MemoStore.instance.boards.first;
 
     for (var i = 0; i < 3; i++) {
-      await tester.tap(find.byTooltip('줄 추가'));
-      await tester.pumpAndSettle();
+      await addRow(tester);
     }
     await tester.enterText(find.byType(TextField).first, '남는 줄');
     await tester.pumpAndSettle();
@@ -64,8 +76,7 @@ void main() {
     await open(tester, const Size(390, 1400));
 
     for (var i = 0; i < 6; i++) {
-      await tester.tap(find.byTooltip('줄 추가'));
-      await tester.pumpAndSettle();
+      await addRow(tester);
     }
     final card = find.byType(BackdropFilter).first;
     final tall = tester.getSize(card).height;
@@ -82,8 +93,7 @@ void main() {
     final board = MemoStore.instance.boards.first;
 
     for (var i = 0; i < 2; i++) {
-      await tester.tap(find.byTooltip('줄 추가'));
-      await tester.pumpAndSettle();
+      await addRow(tester);
     }
     await tester.enterText(find.byType(TextField).first, '첫 줄');
     await tester.pumpAndSettle();
@@ -104,8 +114,7 @@ void main() {
   testWidgets('적어 둔 주소는 눌러서 열 수 있게 그린다', (tester) async {
     await open(tester, const Size(390, 900));
 
-    await tester.tap(find.byTooltip('줄 추가'));
-    await tester.pumpAndSettle();
+    await addRow(tester);
     await tester.enterText(
       find.byType(TextField).first,
       '참고 https://flutter.dev 보기',
@@ -134,8 +143,7 @@ void main() {
   testWidgets('엔터를 누르면 커서가 새로 생긴 줄로 내려간다', (tester) async {
     await open(tester, const Size(390, 900));
 
-    await tester.tap(find.byTooltip('줄 추가'));
-    await tester.pumpAndSettle();
+    await addRow(tester);
     await tester.enterText(find.byType(TextField).first, '첫 줄\n');
     await tester.pumpAndSettle();
 
@@ -158,8 +166,7 @@ void main() {
     await tester.pumpAndSettle();
 
     for (var i = 0; i < 3; i++) {
-      await tester.tap(find.byTooltip('줄 추가'));
-      await tester.pumpAndSettle();
+      await addRow(tester);
     }
     await tester.enterText(find.byType(TextField).first, '첫 줄');
     await tester.pumpAndSettle();
@@ -284,6 +291,41 @@ void main() {
       MemoStore.instance.boards.any((b) => b.title == '내일 또 만나'),
       isFalse,
     );
+    await close(tester);
+  });
+
+  testWidgets('여러 줄을 붙여넣으면 줄마다 제 칸을 얻는다', (tester) async {
+    await open(tester, const Size(390, 1200));
+    final board = MemoStore.instance.boards.first;
+
+    await addRow(tester);
+    await tester.enterText(find.byType(TextField).first, '첫 줄\n둘째 줄\n셋째 줄');
+    await tester.pumpAndSettle();
+
+    final texts = MemoStore.instance
+        .entriesOf(board.id)
+        .map((e) => e.text)
+        .toList();
+    expect(texts, ['첫 줄', '둘째 줄', '셋째 줄']);
+    await close(tester);
+  });
+
+  testWidgets('휴지통은 묻지 않고 지우고, 되돌릴 수 있다', (tester) async {
+    await open(tester, const Size(390, 1100));
+    final gone = MemoStore.instance.boards.first;
+    final before = MemoStore.instance.boards.length;
+
+    await tester.tap(find.byTooltip('이 메모 지우기'));
+    await tester.pumpAndSettle();
+
+    // 새 창을 띄우지 않고 그대로 사라진다.
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(MemoStore.instance.boards.length, before - 1);
+    expect(MemoStore.instance.boards.any((b) => b.id == gone.id), isFalse);
+
+    await tester.tap(find.text('되돌리기'));
+    await tester.pumpAndSettle();
+    expect(MemoStore.instance.boards.any((b) => b.id == gone.id), isTrue);
     await close(tester);
   });
 }

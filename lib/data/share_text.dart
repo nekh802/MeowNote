@@ -36,6 +36,35 @@ Future<void> shareBoard(Board board, List<Entry> entries) =>
       ShareParams(text: boardAsText(board, entries), subject: board.title),
     );
 
+/// 가진 메모를 모두 한 덩이 글로 옮긴다.
+///
+/// 애플은 다른 앱이 메모 앱에 글을 써 넣는 길을 열어 두지 않았다. 그래서
+/// 공유 창에 글을 넘기고, 받는 곳으로 '메모'를 고르게 한다. 고른 순간
+/// 메모 앱에 새 메모 한 장이 그대로 만들어진다.
+String allBoardsAsText(
+  List<Board> boards,
+  List<Entry> Function(String boardId) entriesOf,
+) {
+  final buf = StringBuffer('말랑 고양이 메모')
+    ..write('\n${ymdhm(DateTime.now())} 백업')
+    ..write('\n메모 ${boards.length}장');
+  for (final board in boards) {
+    buf.write('\n\n────────\n');
+    buf.write(boardAsText(board, entriesOf(board.id)));
+  }
+  return buf.toString();
+}
+
+Future<void> shareAllBoards(
+  List<Board> boards,
+  List<Entry> Function(String boardId) entriesOf,
+) => SharePlus.instance.share(
+  ShareParams(
+    text: allBoardsAsText(boards, entriesOf),
+    subject: '말랑 고양이 메모 백업',
+  ),
+);
+
 /// 앱 자체를 친구에게 건네는 링크.
 ///
 /// 애플은 앱 안에서 앱을 선물하는 길을 열어 두지 않았다. 인앱결제로

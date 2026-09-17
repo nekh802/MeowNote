@@ -41,8 +41,17 @@ class WidgetFeed {
   };
 
   static Map<String, dynamic> bundle(MemoStore store) {
+    // 위젯은 목록의 차례를 따르지 않는다. 붙박아 둔 것이 앞이고, 그 안에서
+    // 가장 최근에 손댄 것이 먼저다. 이름 순으로 늘어놓고 쓰더라도 위젯에는
+    // 방금 쓰던 메모가 뜬다.
+    final ordered = store.boards.toList()
+      ..sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        return b.updatedAt.compareTo(a.updatedAt);
+      });
+
     final notes = <Map<String, dynamic>>[];
-    for (final board in store.boards.take(_cards)) {
+    for (final board in ordered.take(_cards)) {
       final palette = CardPalette.byKey(board.colorKey);
       final badge = CardBadge.byKey(board.badgeKey);
       final entries = store.entriesOf(board.id);

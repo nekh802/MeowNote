@@ -131,17 +131,24 @@ struct CardSize {
   let body: CGFloat
   let row: CGFloat
   let rows: Int
+  /// 고양이가 앉는 띠의 높이. 너비가 아니라 높이로 셈해야 어떤 아이를
+  /// 앉혀도 띠가 일정하고, 괘선과 겹치지 않는다.
   let cat: CGFloat
+  /// 세 마리는 옆으로 길어 같은 자리에 더 낮게 앉는다.
+  let trio: CGFloat
   let pad: CGFloat
   /// 고양이가 앉는 쪽.
   let catTrailing: Bool
 
   static let small = CardSize(
-    title: 15, body: 11.5, row: 19, rows: 4, cat: 56, pad: 12, catTrailing: true)
+    title: 15, body: 11.5, row: 19, rows: 3, cat: 38, trio: 26, pad: 3,
+    catTrailing: true)
   static let medium = CardSize(
-    title: 17, body: 13, row: 22, rows: 4, cat: 78, pad: 14, catTrailing: true)
+    title: 17, body: 13, row: 22, rows: 3, cat: 46, trio: 30, pad: 3,
+    catTrailing: true)
   static let large = CardSize(
-    title: 19, body: 14, row: 25, rows: 8, cat: 92, pad: 16, catTrailing: false)
+    title: 19, body: 14, row: 25, rows: 7, cat: 62, trio: 38, pad: 4,
+    catTrailing: false)
 }
 
 /// 카드 안쪽의 옅은 모눈. 앱 카드와 같은 질감을 준다.
@@ -238,19 +245,13 @@ struct NoteCard: View {
   let size: CardSize
 
   private var ink: Color { Color(hex: note.ink) }
+  /// 세 마리는 옆으로 긴 그림이라 한쪽 구석이 아니라 아래 한가운데에 앉는다.
+  private var isTrio: Bool { note.cat == "trio" }
 
   var body: some View {
-    ZStack(alignment: size.catTrailing ? .bottomTrailing : .bottomLeading) {
+    ZStack {
       Color(hex: note.bg)
       GridTexture()
-
-      if let cat = catImage(note.cat) {
-        cat
-          .resizable()
-          .scaledToFit()
-          .frame(width: size.cat)
-          .padding(size.catTrailing ? .trailing : .leading, 4)
-      }
 
       VStack(alignment: .leading, spacing: 0) {
         HStack(spacing: 5) {
@@ -270,17 +271,31 @@ struct NoteCard: View {
               .foregroundColor(Color(hex: note.tint))
           }
         }
-        .padding(.bottom, 6)
+        .padding(.bottom, 5)
 
         // 적은 줄을 먼저 놓고, 남는 자리는 빈 괘선으로 채운다.
         let written = note.written
         ForEach(0..<size.rows, id: \.self) { i in
           RuledRow(note: note, line: i < written.count ? written[i] : nil, size: size)
         }
+
         Spacer(minLength: 0)
+
+        // 고양이는 괘선 아래 제 띠에 앉는다. 겹치지 않으니 글씨를 가리지 않는다.
+        if let cat = catImage(note.cat) {
+          HStack(spacing: 0) {
+            if isTrio || size.catTrailing { Spacer(minLength: 0) }
+            cat
+              .resizable()
+              .scaledToFit()
+              .opacity(0.5)
+              .frame(height: isTrio ? size.trio : size.cat)
+            if isTrio || !size.catTrailing { Spacer(minLength: 0) }
+          }
+          .frame(height: isTrio ? size.trio : size.cat)
+        }
       }
-      .padding(.horizontal, size.pad)
-      .padding(.vertical, size.pad - 2)
+      .padding(size.pad)
     }
   }
 }
