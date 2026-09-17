@@ -19,7 +19,7 @@ class MemoStore extends ChangeNotifier {
   static final MemoStore instance = MemoStore._();
 
   static const schemaVersion = 1;
-  static const appVersion = '1.4.0';
+  static const appVersion = '1.5.2';
 
   final List<Board> _boards = [];
   final List<Entry> _entries = [];

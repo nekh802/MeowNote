@@ -172,7 +172,6 @@ void main() {
     // 만든 줄에는 모두 하트가 서고, 카드를 채우는 빈 괘선에는 서지 않는다.
     expect(rows, greaterThan(1));
     expect(find.byIcon(Icons.favorite), findsNWidgets(rows));
-    expect(find.text('적어보기'), findsOneWidget);
     await close(tester);
   });
 
@@ -192,7 +191,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('고정된 메모'), findsOneWidget);
-    expect(find.text('모든 메모'), findsOneWidget);
+    // 나머지는 편집일 묶음으로 내려간다 — 방금 놓은 카드라 '오늘'이다.
+    expect(find.text('오늘'), findsOneWidget);
     expect(MemoStore.instance.boards.first.title, '내일 또 만나');
 
     // 한 번 더 꾸욱 누르면 떼어진다.

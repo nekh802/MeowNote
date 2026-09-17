@@ -14,7 +14,6 @@
 		18AEC9A64DA2F5D2EB69D892 /* mochi.png in Resources */ = {isa = PBXBuildFile; fileRef = CA734E338AB1B324442A7FBD /* mochi.png */; };
 		193DA6CED15A0759ABC01C94 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF45F480E2C822F9EEDBA812 /* Foundation.framework */; };
 		292125836D1B869D9CD8413E /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7B11F8E074BA186292BCE563 /* Pods_Runner.framework */; };
-		2CAE7AEA0E43396076455CF3 /* noeul.png in Resources */ = {isa = PBXBuildFile; fileRef = D50A68FA927131097193E33B /* noeul.png */; };
 		328969E316C4A2D3710E1CE7 /* dalgi.png in Resources */ = {isa = PBXBuildFile; fileRef = 37F910AA12776B654C568373 /* dalgi.png */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
@@ -116,7 +115,6 @@
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C9AE813125B39A071A80D4F7 /* MalangWidget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = MalangWidget.entitlements; sourceTree = "<group>"; };
 		CA734E338AB1B324442A7FBD /* mochi.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = mochi.png; sourceTree = "<group>"; };
-		D50A68FA927131097193E33B /* noeul.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = noeul.png; sourceTree = "<group>"; };
 		D53E5A907B523CEB1E22FAF5 /* danchu.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = danchu.png; sourceTree = "<group>"; };
 		DF45F480E2C822F9EEDBA812 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		EBFCB6DC462782DE7F7F6A09 /* bori.png */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.png; path = bori.png; sourceTree = "<group>"; };
@@ -235,7 +233,6 @@
 				CA734E338AB1B324442A7FBD /* mochi.png */,
 				3D97E0A6ADA71915760B6666 /* mongi.png */,
 				ED88A4ABDBE19EA6F314FD90 /* nabi.png */,
-				D50A68FA927131097193E33B /* noeul.png */,
 				86E36286240E7722FEDB6702 /* sol.png */,
 				6ABE87C174FE5DDEA5D6DC61 /* title.png */,
 				18C8AF42026200487139D32A /* trio.png */,
@@ -402,7 +399,6 @@
 				18AEC9A64DA2F5D2EB69D892 /* mochi.png in Resources */,
 				15872E20254D68F192558696 /* mongi.png in Resources */,
 				5ED035731F6073555B8DAE85 /* nabi.png in Resources */,
-				2CAE7AEA0E43396076455CF3 /* noeul.png in Resources */,
 				0976D646E93EE6FDEE681AEE /* sol.png in Resources */,
 				EF01A43D5CD769E7B4CDA589 /* title.png in Resources */,
 				A737011FA85FF55781BE4300 /* trio.png in Resources */,

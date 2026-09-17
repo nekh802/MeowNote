@@ -35,3 +35,12 @@ Future<void> shareBoard(Board board, List<Entry> entries) =>
     SharePlus.instance.share(
       ShareParams(text: boardAsText(board, entries), subject: board.title),
     );
+
+/// 앱 자체를 친구에게 건네는 링크.
+///
+/// 애플은 앱 안에서 앱을 선물하는 길을 열어 두지 않았다. 인앱결제로
+/// 남에게 앱을 사 줄 수도 없다. 대신 앱스토어 페이지를 건네면, 받은
+/// 사람이 그 자리에서 내려받거나 애플의 '앱 선물하기'를 쓸 수 있다.
+Future<void> shareGift(Uri page) => SharePlus.instance.share(
+  ShareParams(text: '말랑 고양이 메모를 선물할게요 🎁\n$page', subject: '말랑 고양이 메모'),
+);

@@ -20,7 +20,7 @@ class OriginalArtwork extends StatelessWidget {
     'byeol' => const Rect.fromLTRB(1098, 362, 1460, 532),
     'sol' => const Rect.fromLTRB(60, 748, 250, 916),
     'trio' => const Rect.fromLTRB(551, 785, 984, 916),
-    'nabi' => const Rect.fromLTRB(814, 793, 984, 916),
+    'nabi' => const Rect.fromLTRB(812, 793, 984, 916),
     'kongi' => const Rect.fromLTRB(1262, 761, 1468, 915),
     'title' => const Rect.fromLTRB(493, 22, 1051, 142),
     // 두 번째 장.
