@@ -314,6 +314,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
               const SizedBox(height: 22),
+              const _SheetLabel('정리하기'),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.delete_outline_rounded),
+                title: const Text('메모 지우기'),
+                subtitle: const Text('여러 장을 골라 한 번에'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _openDeleteSheet();
+                },
+              ),
+              const SizedBox(height: 22),
               const _SheetLabel('선물하기'),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -330,6 +342,74 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  /// 여러 장을 골라 한 번에 지운다.
+  Future<void> _openDeleteSheet() async {
+    final picked = <String>{};
+    final gone = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheet) => StatefulBuilder(
+        builder: (context, setSheet) => SingleChildScrollView(
+          child: _Sheet(
+            title: '메모 지우기',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _SheetLabel('지울 메모를 고르세요'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final board in _store.boards)
+                      _PickBox(
+                        label: board.title,
+                        selected: picked.contains(board.id),
+                        onTap: () => setSheet(() {
+                          if (!picked.remove(board.id)) picked.add(board.id);
+                        }),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: picked.isEmpty
+                          ? null
+                          : Theme.of(context).colorScheme.error,
+                    ),
+                    onPressed: picked.isEmpty
+                        ? null
+                        : () => Navigator.of(sheet).pop(picked.length),
+                    child: Text(
+                      picked.isEmpty ? '지우기' : '${picked.length}장 지우기',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (gone == null || !mounted) return;
+    setState(() {
+      _store.deleteBoards(picked);
+      // 펼쳐 둔 메모가 사라졌으면 남은 것 가운데 첫 장을 편다.
+      if (_store.boards.every((b) => b.id != _selectedBoardId)) {
+        _selectedBoardId = _store.boards.firstOrNull?.id;
+      }
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('메모 $gone장을 지웠어요')));
   }
 
   /// 앱스토어 페이지를 친구에게 건넨다.
@@ -434,7 +514,13 @@ class _LibraryPage extends StatefulWidget {
   State<_LibraryPage> createState() => _LibraryPageState();
 }
 
-class _LibraryPageState extends State<_LibraryPage> {
+class _LibraryPageState extends State<_LibraryPage>
+    with AutomaticKeepAliveClientMixin {
+  // 메모를 펼치면 목록 장은 화면 밖으로 나간다. 그대로 두면 PageView 가
+  // 이 장을 버려 검색어와 ∨ 박스 상태가 함께 사라진다.
+  @override
+  bool get wantKeepAlive => true;
+
   /// 이름표와 그 아래 설 카드들. 붙박은 것이 늘 앞이고, 때로 줄 세울
   /// 때는 '오늘·어제·이전 7일·이전 30일'로 묶는다.
   List<(String, List<Board>)> _sections(List<Board> pinned, List<Board> loose) {
@@ -469,6 +555,7 @@ class _LibraryPageState extends State<_LibraryPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final bg = widget.bg;
     final wide = MediaQuery.of(context).size.width >= 1080;
     final pad = wide ? 40.0 : 20.0;
@@ -729,8 +816,7 @@ class _GroupLabel extends StatelessWidget {
   );
 }
 
-/// 작은 블록 한 장의 셈. 맨 윗줄에 몇 장이 서는지 재려면 너비를
-/// 미리 알아야 해서, 여백을 테마에 맡기지 않고 여기서 정한다.
+/// 작은 블록 한 장의 셈.
 const _chipPadH = 16.0;
 const _chipPadV = 10.0;
 const _chipEdge = 1.5;
@@ -742,13 +828,10 @@ const _chipRadius = 10.0;
 /// 블록 테두리. 카드 색을 따라가지 않고 어느 블록이나 같은 옅은 잿빛이다.
 const _chipEdgeColor = Color(0xFFE0D5CD);
 const _chipGap = 8.0;
-const _chipPinW = 17.0; // 압정 12 + 사이 5
-const _chipCheckW = 21.0; // 체크 16 + 사이 5
 
 /// 메모를 고르는 작은 블록들. 꾸욱 누르면 맨 위에 붙박는다.
 ///
-/// [onAdd] 를 주면 새 메모 [+] 블록을 맨 윗줄 남는 자리에 끼운다. 윗줄이
-/// 이미 꽉 차 있으면 그 다음 줄 앞으로 밀린다.
+/// [onAdd] 를 주면 새 메모 [+] 블록을 맨 앞에 세운다.
 class _BoardChips extends StatelessWidget {
   const _BoardChips({
     required this.boards,
@@ -764,50 +847,23 @@ class _BoardChips extends StatelessWidget {
   final void Function(Board) onPin;
   final VoidCallback? onAdd;
 
-  double _width(Board b) {
-    final tp = TextPainter(
-      text: TextSpan(text: b.title, style: _round(14, const Color(0xFF000000))),
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-    )..layout();
-    return tp.width +
-        _chipPadH * 2 +
-        _chipEdge * 2 +
-        (b.isPinned ? _chipPinW : 0) +
-        (b.id == selectedId ? _chipCheckW : 0);
-  }
-
-  /// 너비 [max] 안에 맨 윗줄로 설 수 있는 블록의 수.
-  int _firstRow(double max) {
-    var used = 0.0, n = 0;
-    for (final b in boards) {
-      final w = _width(b);
-      final next = n == 0 ? w : used + _chipGap + w;
-      if (next > max) break;
-      used = next;
-      n++;
-    }
-    return n;
-  }
-
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        final chips = <Widget>[
-          for (final board in boards)
-            _BoardChip(
-              board: board,
-              selected: board.id == selectedId,
-              onTap: () => onPick(board),
-              onLongPress: () => onPin(board),
-            ),
-        ];
-        if (onAdd != null) {
-          chips.insert(_firstRow(c.maxWidth), _AddBoardChip(onTap: onAdd!));
-        }
-        return Wrap(spacing: _chipGap, runSpacing: _chipGap, children: chips);
-      },
+    return Wrap(
+      spacing: _chipGap,
+      runSpacing: _chipGap,
+      children: [
+        // 새 메모는 언제나 맨 앞이다. 차례를 바꾸거나 붙박아 두어도
+        // 찾는 자리가 달라지지 않는다.
+        if (onAdd != null) _AddBoardChip(onTap: onAdd!),
+        for (final board in boards)
+          _BoardChip(
+            board: board,
+            selected: board.id == selectedId,
+            onTap: () => onPick(board),
+            onLongPress: () => onPin(board),
+          ),
+      ],
     );
   }
 }
@@ -1606,7 +1662,15 @@ class _AddButton extends StatelessWidget {
 const _rowText = 17.0;
 const _rowLine = 22.0;
 const _rowPad = 8.0;
+const _rowRule = 1.6;
 const _rowHeight = _rowLine + _rowPad * 2;
+
+/// 괘선까지 더한 한 칸의 실제 높이.
+///
+/// Container 는 테두리 두께만큼 제 몸을 더 키운다. 글을 적는 칸은 그래서
+/// _rowHeight + _rowRule 이 되는데, 장식용 빈 괘선을 _rowHeight 로 두면
+/// 엔터로 줄이 하나 생길 때마다 카드가 그 차이만큼 들썩였다.
+const _ruleHeight = _rowHeight + _rowRule;
 
 /// 줄 앞 표시가 서는 자리.
 ///
@@ -1651,9 +1715,11 @@ class _EmptyRule extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        height: _rowHeight,
+        height: _ruleHeight,
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: palette.line, width: 1.6)),
+          border: Border(
+            bottom: BorderSide(color: palette.line, width: _rowRule),
+          ),
         ),
       ),
     );
@@ -1841,7 +1907,9 @@ class _EntryRowState extends State<_EntryRow> {
         // 글이 길어지면 줄을 바꿔 칸이 같이 자란다.
         constraints: const BoxConstraints(minHeight: _rowHeight),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: p.line, width: 1.6)),
+          border: Border(
+            bottom: BorderSide(color: p.line, width: _rowRule),
+          ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2127,37 +2195,42 @@ class _Sheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      child: Container(
-        margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
-        decoration: BoxDecoration(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        // Material 로 깔아야 안에 놓인 ListTile 이 제 바탕 위에 잉크를
+        // 번지게 할 수 있다. 색칠한 상자로 감싸면 그 효과가 가려진다.
+        child: Material(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(26),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: _round(19, const Color(0xFF6B4F52)),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: _round(19, const Color(0xFF6B4F52)),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      tooltip: '닫기',
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      color: const Color(0xFF6B4F52),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  tooltip: '닫기',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.close_rounded, size: 20),
-                  color: const Color(0xFF6B4F52),
-                ),
+                const SizedBox(height: 10),
+                child,
               ],
             ),
-            const SizedBox(height: 10),
-            child,
-          ],
+          ),
         ),
       ),
     );

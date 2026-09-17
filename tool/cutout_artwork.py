@@ -39,6 +39,9 @@ class Art:
            넘어가지 않을 만큼만 벌린다.
     erase  무조건 지울 사각형 (LTRB). 색만으로는 여백과 구분되지 않는
            구석에만 쓴다.
+    bleach 이 사각형 안에서 흰 것만 지운다. 카드 모서리의 흰 곡선
+           장식이 수염과 겹쳐 그려진 자리처럼, 통째로 지우면 그림까지
+           함께 사라지는 곳에 쓴다.
     mirror 오려낸 뒤 한 자리를 좌우로 뒤집어 다른 자리에 얹는다.
            ((L,T,R,B), 놓을 왼쪽 x) 꼴. 원본에서 옆 그림과 얽혀 도저히
            갈라낼 수 없는 자리에만 쓴다 — 그림을 새로 그리는 것이 아니라
@@ -63,11 +66,13 @@ class Art:
     """
 
     def __init__(self, box, sheet=1, grow="tlr", erase=(), wall=(), mirror=(),
-                 speck=16, page=250, dark=165.0, bridge=0, off=16.0,
-                 step=20.0):
+                 bleach=(), blend=0, speck=16, page=250, dark=165.0, bridge=0,
+                 off=16.0, step=20.0):
         self.box = box
         self.wall = wall
         self.mirror = mirror
+        self.bleach = bleach
+        self.blend = blend
         self.sheet = sheet
         self.grow = grow
         self.erase = erase
@@ -85,7 +90,9 @@ ARTS = {
     # 잠든 아이는 카드 위에 옅게 깔려 있어 몸 색이 카드와 거의 같다.
     # 기준을 좁게 잡아야 외곽선에서 멈춘다.
     "byeol": Art((1098, 362, 1460, 532), dark=0.0, off=11.0, step=9.0),
-    "sol": Art((60, 748, 250, 916)),
+    # 왼쪽 수염 끝이 칸 밖으로 나가 잘려 있었다. 칸을 넓히면 카드
+    # 모서리의 흰 곡선 장식이 따라 들어와, 그 자리에서는 흰 것만 지운다.
+    "sol": Art((48, 748, 250, 916), bleach=((48, 748, 76, 916),)),
     "trio": Art((551, 785, 984, 916)),
     # 왼쪽 수염은 옆 고양이 수염과 획이 겹쳐 그려져 있어, 어디서 잘라도
     # 두 아이의 수염이 한 덩어리로 남는다. 왼쪽은 통째로 비우고, 이 아이
@@ -97,7 +104,8 @@ ARTS = {
     # 시작한다.
     "nabi": Art((812, 793, 984, 916), speck=20,
                 wall=((796, 770, 812, 930), (812, 785, 830, 930),
-                      (812, 856, 848, 898)),
+                      (812, 856, 843, 898)),
+                blend=5,
                 mirror=(((944, 856, 980, 898), 812),)),
     # 왼쪽 위로 카드 괘선이 지나간다.
     "kongi": Art((1262, 761, 1468, 915), erase=((1262, 776, 1298, 784),)),
@@ -107,10 +115,10 @@ ARTS = {
 
     # 두 번째 장(말랑 고양이 메모 · 두 번째 이야기)의 여섯 마리.
     "haneul": Art((300, 396, 509, 538), sheet=2),
-    # 카드 모서리 장식만 지운다. 예전에는 칸이 커서 왼쪽 아래 수염까지
-    # 함께 지워졌다.
+    # 카드 모서리의 흰 곡선 장식이 왼쪽 수염과 겹쳐 그려져 있다. 통째로
+    # 지우면 수염까지 잘리므로 그 자리에서는 흰 것만 지운다.
     "bori": Art((1040, 388, 1276, 538), sheet=2,
-                erase=((1040, 508, 1078, 532),)),
+                bleach=((1040, 492, 1085, 538), (1155, 524, 1180, 538))),
     # 카드 괘선과 모서리 장식이 함께 걸린다.
     "mongi": Art((274, 845, 509, 978), sheet=2,
                  erase=((274, 845, 326, 858), (486, 940, 509, 972))),
@@ -281,11 +289,20 @@ def cut(name, art):
     for i in range(w * h):
         if src_alpha[i] < 255:
             alpha[i] = alpha[i] * src_alpha[i] // 255
+    for x1, y1, x2, y2 in art.bleach:
+        for y in range(max(0, y1 - ct), min(h, y2 - ct)):
+            for x in range(max(0, x1 - cl), min(w, x2 - cl)):
+                i = y * w + x
+                if lum[i] > 232:
+                    alpha[i] = 0
     for (sl, st, sr, sb), dl in art.mirror:
+        # 오른쪽 끝 몇 칸은 원래 그림과 섞어 이음매가 선으로 보이지 않게 한다.
+        last = dl + (sr - 1 - sl)
         for y in range(st, sb):
             for x in range(sl, sr):
                 sx, sy = x - cl, y - ct
-                dx, dy = dl + (sr - 1 - x) - cl, y - ct
+                here = dl + (sr - 1 - x)
+                dx, dy = here - cl, y - ct
                 if not (0 <= sx < w and 0 <= sy < h):
                     continue
                 if not (0 <= dx < w and 0 <= dy < h):
@@ -293,9 +310,15 @@ def cut(name, art):
                 a = alpha[sy * w + sx]
                 if not a:
                     continue
-                alpha[dy * w + dx] = a
-                j, k = (dy * w + dx) * 3, (sy * w + sx) * 3
-                raw[j:j + 3] = raw[k:k + 3]
+                inset = last - here
+                t = 1.0
+                if art.blend and inset < art.blend:
+                    t = (inset + 1) / (art.blend + 1)
+                d, sidx = dy * w + dx, sy * w + sx
+                alpha[d] = round(alpha[d] * (1 - t) + a * t)
+                j, k = d * 3, sidx * 3
+                for c in range(3):
+                    raw[j + c] = round(raw[j + c] * (1 - t) + raw[k + c] * t)
     return crop_png(name, art, raw, alpha, w, cl, ct)
 
 

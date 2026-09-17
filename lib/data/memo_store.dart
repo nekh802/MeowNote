@@ -19,7 +19,7 @@ class MemoStore extends ChangeNotifier {
   static final MemoStore instance = MemoStore._();
 
   static const schemaVersion = 1;
-  static const appVersion = '1.5.2';
+  static const appVersion = '1.7.0';
 
   final List<Board> _boards = [];
   final List<Entry> _entries = [];
@@ -482,6 +482,21 @@ class MemoStore extends ChangeNotifier {
     if (_sort == sort) return;
     _sort = sort;
     _persist();
+  }
+
+  /// 카드를 지운다. 줄과 마찬가지로 흔적만 남기므로 예전 백업에서
+  /// 되살릴 수 있고, 다른 기기와 맞출 때 지운 사실이 함께 전해진다.
+  void deleteBoards(Iterable<String> boardIds) {
+    final now = DateTime.now().toUtc();
+    var hit = false;
+    for (final id in boardIds) {
+      final b = _board(id);
+      if (b == null || !b.isAlive) continue;
+      b.deletedAt = now;
+      b.touch();
+      hit = true;
+    }
+    if (hit) _persist();
   }
 
   /// 목록 맨 위에 붙박거나 떼어 낸다.

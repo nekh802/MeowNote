@@ -237,4 +237,53 @@ void main() {
     expect(find.text('새 메모'), findsWidgets);
     await close(tester);
   });
+
+  testWidgets('메모를 펼쳤다 돌아와도 검색어가 남아 있다', (tester) async {
+    await open(tester, const Size(390, 1100));
+    await tester.tap(find.byTooltip('목록'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('memo-search')), '쉬어');
+    await tester.pumpAndSettle();
+    expect(find.text('하나씩 해볼까'), findsNothing);
+
+    // 찾은 메모를 펼쳤다가 목록으로 되돌아온다.
+    await tester.tap(find.text('잠깐 쉬어가기').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('목록'));
+    await tester.pumpAndSettle();
+
+    // 홈으로 튕겨 나가지 않고 찾던 자리 그대로.
+    expect(
+      tester.widget<TextField>(find.byKey(const Key('memo-search'))).controller!.text,
+      '쉬어',
+    );
+    expect(find.text('하나씩 해볼까'), findsNothing);
+    await close(tester);
+  });
+
+  testWidgets('여러 장을 골라 한 번에 지운다', (tester) async {
+    await open(tester, const Size(390, 1400));
+    final before = MemoStore.instance.boards.length;
+
+    await tester.tap(find.byTooltip('목록'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('더보기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('메모 지우기'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('내일 또 만나').last);
+    await tester.tap(find.text('괜찮아, 천천히').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2장 지우기'));
+    await tester.pumpAndSettle();
+
+    expect(MemoStore.instance.boards.length, before - 2);
+    expect(
+      MemoStore.instance.boards.any((b) => b.title == '내일 또 만나'),
+      isFalse,
+    );
+    await close(tester);
+  });
 }

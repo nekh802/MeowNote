@@ -24,9 +24,19 @@ struct Note: Decodable, Hashable {
   let lines: [Line]
   let done: Int
   let total: Int
+  // 예전 판이 적어 둔 내용에는 없을 수 있어 기본값을 둔다.
+  var badge: String = ""
+  var badgeColor: String = ""
 
   var isCheck: Bool { kind == "checklist" }
   var isHeart: Bool { kind == "hearts" }
+
+  /// 적어 둔 글이 있는 줄만.
+  var written: [Line] { lines.filter { !$0.text.trimmed.isEmpty } }
+}
+
+extension String {
+  var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
 }
 
 struct Feed: Decodable {
@@ -39,8 +49,8 @@ struct Feed: Decodable {
       let raw = store.string(forKey: feedKey),
       let data = raw.data(using: .utf8),
       let feed = try? JSONDecoder().decode(Feed.self, from: data)
-    else { return .empty }
-    return feed
+    else { return .sample }
+    return feed.notes.isEmpty ? .sample : feed
   }
 }
 
@@ -83,8 +93,7 @@ struct Provider: TimelineProvider {
   }
 
   func getSnapshot(in context: Context, completion: @escaping (Entry) -> Void) {
-    let feed = Feed.load()
-    completion(Entry(date: Date(), feed: feed.notes.isEmpty ? .sample : feed))
+    completion(Entry(date: Date(), feed: Feed.load()))
   }
 
   func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> Void) {
@@ -100,152 +109,322 @@ extension Feed {
       title: "오늘의 메모", bg: "FBDCE5", ink: "6E4F55", tint: "E88BA4",
       line: "EFC2D0", cat: "mochi", kind: "note",
       lines: [
-        Line(text: "작은 생각을 적어두기", checked: false),
+        Line(text: "작은 생각 적기", checked: false),
         Line(text: "고양이 간식 사기", checked: false),
-      ], done: 0, total: 2)
+      ], done: 0, total: 2, badge: "heart.fill", badgeColor: "EE8F9F"),
+    Note(
+      title: "하나씩 해볼까", bg: "FCE4C0", ink: "7B6141", tint: "E0A855",
+      line: "F1D2A3", cat: "dalgi", kind: "checklist",
+      lines: [
+        Line(text: "책 읽기", checked: true),
+        Line(text: "산책하기", checked: false),
+        Line(text: "메모 정리", checked: false),
+      ], done: 1, total: 3, badge: "leaf.fill", badgeColor: "86C08A"),
   ])
 }
 
-// MARK: - 그리기
+// MARK: - 카드 그리기
 
-/// 카드 한 장. 크기에 따라 줄 수와 고양이 크기만 달라진다.
-struct NoteCard: View {
+/// 위젯 크기마다 달라지는 셈. 한 군데 모아 두면 크기별로 어긋나지 않는다.
+struct CardSize {
+  let title: CGFloat
+  let body: CGFloat
+  let row: CGFloat
+  let rows: Int
+  let cat: CGFloat
+  let pad: CGFloat
+  /// 고양이가 앉는 쪽.
+  let catTrailing: Bool
+
+  static let small = CardSize(
+    title: 15, body: 11.5, row: 19, rows: 4, cat: 56, pad: 12, catTrailing: true)
+  static let medium = CardSize(
+    title: 17, body: 13, row: 22, rows: 4, cat: 78, pad: 14, catTrailing: true)
+  static let large = CardSize(
+    title: 19, body: 14, row: 25, rows: 8, cat: 92, pad: 16, catTrailing: false)
+}
+
+/// 카드 안쪽의 옅은 모눈. 앱 카드와 같은 질감을 준다.
+struct GridTexture: View {
+  var body: some View {
+    Canvas { ctx, size in
+      let step: CGFloat = 22
+      let ink = GraphicsContext.Shading.color(.white.opacity(0.22))
+      var x: CGFloat = step
+      while x < size.width {
+        ctx.stroke(
+          Path { $0.move(to: CGPoint(x: x, y: 0)); $0.addLine(to: CGPoint(x: x, y: size.height)) },
+          with: ink, lineWidth: 1)
+        x += step
+      }
+      var y: CGFloat = step
+      while y < size.height {
+        ctx.stroke(
+          Path { $0.move(to: CGPoint(x: 0, y: y)); $0.addLine(to: CGPoint(x: size.width, y: y)) },
+          with: ink, lineWidth: 1)
+        y += step
+      }
+    }
+  }
+}
+
+/// 체크리스트 줄 앞의 네모.
+struct CheckBox: View {
+  let checked: Bool
+  let tint: Color
+  let ink: Color
+  let side: CGFloat
+
+  var body: some View {
+    RoundedRectangle(cornerRadius: side * 0.28)
+      .fill(checked ? tint : Color.clear)
+      .overlay(
+        RoundedRectangle(cornerRadius: side * 0.28)
+          .strokeBorder(checked ? tint : ink.opacity(0.55), lineWidth: 1.8)
+      )
+      .overlay(
+        Group {
+          if checked {
+            Image(systemName: "checkmark")
+              .font(.system(size: side * 0.6, weight: .bold))
+              .foregroundColor(.white)
+          }
+        }
+      )
+      .frame(width: side, height: side)
+  }
+}
+
+/// 괘선 한 줄. 적은 글이 없으면 줄만 남는다.
+struct RuledRow: View {
   let note: Note
-  let lineLimit: Int
-  let titleSize: CGFloat
-  let bodySize: CGFloat
-  let catWidth: CGFloat
+  let line: Line?
+  let size: CardSize
 
   private var ink: Color { Color(hex: note.ink) }
 
   var body: some View {
-    ZStack(alignment: .bottomTrailing) {
+    VStack(spacing: 0) {
+      HStack(alignment: .center, spacing: 6) {
+        if let line, !line.text.trimmed.isEmpty {
+          if note.isCheck {
+            CheckBox(
+              checked: line.checked, tint: Color(hex: note.tint), ink: ink,
+              side: size.body + 3)
+          } else if note.isHeart {
+            Image(systemName: "heart.fill")
+              .font(.system(size: size.body - 2))
+              .foregroundColor(Color(hex: note.tint))
+          }
+          Text(line.text)
+            .font(.system(size: size.body, weight: .medium))
+            .foregroundColor(ink.opacity(line.checked ? 0.45 : 0.92))
+            .strikethrough(line.checked, color: ink.opacity(0.45))
+            .lineLimit(1)
+        }
+        Spacer(minLength: 0)
+      }
+      .frame(height: size.row)
+      Rectangle()
+        .fill(Color(hex: note.line))
+        .frame(height: 1.4)
+    }
+  }
+}
+
+/// 카드 한 장. 위젯 한 칸을 그대로 채운다.
+struct NoteCard: View {
+  let note: Note
+  let size: CardSize
+
+  private var ink: Color { Color(hex: note.ink) }
+
+  var body: some View {
+    ZStack(alignment: size.catTrailing ? .bottomTrailing : .bottomLeading) {
       Color(hex: note.bg)
+      GridTexture()
 
       if let cat = catImage(note.cat) {
         cat
           .resizable()
           .scaledToFit()
-          .frame(width: catWidth)
-          .padding(.trailing, 6)
-          .padding(.bottom, 2)
+          .frame(width: size.cat)
+          .padding(size.catTrailing ? .trailing : .leading, 4)
       }
 
-      VStack(alignment: .leading, spacing: 5) {
+      VStack(alignment: .leading, spacing: 0) {
         HStack(spacing: 5) {
           Text(note.title)
-            .font(.system(size: titleSize, weight: .bold))
+            .font(.system(size: size.title, weight: .bold))
             .foregroundColor(ink)
             .lineLimit(1)
+          if !note.badge.isEmpty {
+            Image(systemName: note.badge)
+              .font(.system(size: size.title * 0.62))
+              .foregroundColor(Color(hex: note.badgeColor, fallback: Color(hex: note.tint)))
+          }
+          Spacer(minLength: 0)
           if note.isCheck && note.total > 0 {
             Text("\(note.done)/\(note.total)")
-              .font(.system(size: bodySize - 2, weight: .semibold))
+              .font(.system(size: size.body, weight: .semibold))
               .foregroundColor(Color(hex: note.tint))
           }
         }
+        .padding(.bottom, 6)
 
-        ForEach(Array(note.lines.prefix(lineLimit)), id: \.self) { line in
-          HStack(alignment: .firstTextBaseline, spacing: 5) {
-            if note.isCheck {
-              Image(systemName: line.checked ? "checkmark.square.fill" : "square")
-                .font(.system(size: bodySize - 2))
-                .foregroundColor(Color(hex: note.tint))
-            } else if note.isHeart {
-              Image(systemName: "heart.fill")
-                .font(.system(size: bodySize - 4))
-                .foregroundColor(Color(hex: note.tint))
-            }
-            Text(line.text)
-              .font(.system(size: bodySize))
-              .foregroundColor(ink.opacity(line.checked ? 0.45 : 0.9))
-              .strikethrough(line.checked, color: ink.opacity(0.45))
-              .lineLimit(1)
-          }
+        // 적은 줄을 먼저 놓고, 남는 자리는 빈 괘선으로 채운다.
+        let written = note.written
+        ForEach(0..<size.rows, id: \.self) { i in
+          RuledRow(note: note, line: i < written.count ? written[i] : nil, size: size)
         }
-
-        if note.lines.isEmpty {
-          Text("아직 비어 있어요")
-            .font(.system(size: bodySize))
-            .foregroundColor(ink.opacity(0.35))
-        }
-
         Spacer(minLength: 0)
       }
-      .padding(.horizontal, 12)
-      .padding(.vertical, 11)
+      .padding(.horizontal, size.pad)
+      .padding(.vertical, size.pad - 2)
     }
   }
 }
 
-/// 작은 것 하나 — 2×2.
+// MARK: - 홈 화면
+
 struct SmallView: View {
+  let note: Note
+  var body: some View { NoteCard(note: note, size: .small) }
+}
+
+struct MediumView: View {
+  let note: Note
+  var body: some View { NoteCard(note: note, size: .medium) }
+}
+
+struct LargeView: View {
+  let note: Note
+  var body: some View { NoteCard(note: note, size: .large) }
+}
+
+// MARK: - 잠금 화면
+
+/// 잠금 화면은 한 가지 색으로만 그려진다. 사진 대신 선으로 그린 고양이를 쓴다.
+struct CatGlyph: View {
+  var body: some View {
+    GeometryReader { geo in
+      let w = geo.size.width
+      let h = geo.size.height
+      ZStack {
+        Path { p in
+          p.move(to: CGPoint(x: w * 0.16, y: h * 0.44))
+          p.addLine(to: CGPoint(x: w * 0.24, y: h * 0.06))
+          p.addLine(to: CGPoint(x: w * 0.48, y: h * 0.26))
+          p.move(to: CGPoint(x: w * 0.84, y: h * 0.44))
+          p.addLine(to: CGPoint(x: w * 0.76, y: h * 0.06))
+          p.addLine(to: CGPoint(x: w * 0.52, y: h * 0.26))
+        }
+        .stroke(style: StrokeStyle(lineWidth: w * 0.08, lineCap: .round, lineJoin: .round))
+
+        Ellipse()
+          .strokeBorder(style: StrokeStyle(lineWidth: w * 0.08))
+          .frame(width: w * 0.84, height: h * 0.62)
+          .offset(y: h * 0.16)
+
+        HStack(spacing: w * 0.24) {
+          Circle().frame(width: w * 0.08, height: w * 0.08)
+          Circle().frame(width: w * 0.08, height: w * 0.08)
+        }
+        .offset(y: h * 0.08)
+      }
+    }
+  }
+}
+
+/// 동그라미 — 오늘 해낸 만큼 테두리가 찬다.
+struct CircularView: View {
   let note: Note
 
   var body: some View {
-    NoteCard(note: note, lineLimit: 3, titleSize: 15, bodySize: 12, catWidth: 62)
-  }
-}
-
-/// 옆으로 긴 것 — 4×2. 오른쪽에 다른 카드 이름을 곁들인다.
-struct MediumView: View {
-  let feed: Feed
-
-  var body: some View {
-    let note = feed.notes[0]
-    HStack(spacing: 0) {
-      NoteCard(note: note, lineLimit: 4, titleSize: 17, bodySize: 13, catWidth: 74)
-      if feed.notes.count > 1 {
-        VStack(alignment: .leading, spacing: 7) {
-          ForEach(Array(feed.notes.dropFirst().prefix(3)), id: \.self) { other in
-            HStack(spacing: 6) {
-              Circle().fill(Color(hex: other.tint)).frame(width: 7, height: 7)
-              Text(other.title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Color(hex: other.ink))
-                .lineLimit(1)
-            }
-          }
-          Spacer(minLength: 0)
+    let ratio = note.total == 0 ? 0 : Double(note.done) / Double(note.total)
+    ZStack {
+      AccessoryWidgetBackground()
+      Circle().stroke(lineWidth: 4).opacity(0.25)
+      Circle()
+        .trim(from: 0, to: max(0.02, ratio))
+        .stroke(style: StrokeStyle(lineWidth: 4, lineCap: .round))
+        .rotationEffect(.degrees(-90))
+      VStack(spacing: 0) {
+        CatGlyph().frame(width: 20, height: 17)
+        if note.total > 0 {
+          Text("\(note.done)/\(note.total)")
+            .font(.system(size: 10, weight: .semibold))
         }
-        .padding(.horizontal, 11)
-        .padding(.vertical, 13)
-        .frame(width: 118, alignment: .leading)
-        .background(Color(hex: note.bg).opacity(0.45))
       }
     }
   }
 }
 
-/// 큰 것 — 4×4. 카드 두 장을 위아래로 둔다.
-struct LargeView: View {
-  let feed: Feed
+/// 직사각형 — 제목과 남은 할 일.
+struct RectangularView: View {
+  let note: Note
 
   var body: some View {
-    VStack(spacing: 0) {
-      NoteCard(
-        note: feed.notes[0], lineLimit: 6, titleSize: 19, bodySize: 14, catWidth: 92)
-      if feed.notes.count > 1 {
-        NoteCard(
-          note: feed.notes[1], lineLimit: 5, titleSize: 17, bodySize: 13, catWidth: 78)
+    HStack(spacing: 8) {
+      CatGlyph().frame(width: 26, height: 23)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(note.title)
+          .font(.system(size: 14, weight: .bold))
+          .lineLimit(1)
+        Text(summary)
+          .font(.system(size: 12))
+          .opacity(0.8)
+          .lineLimit(1)
       }
+      Spacer(minLength: 0)
     }
   }
+
+  private var summary: String {
+    let left = note.written.filter { !$0.checked }.map(\.text)
+    if left.isEmpty { return note.written.isEmpty ? "오늘도 말랑하게" : "오늘 할 일 다 했어요" }
+    return left.prefix(2).joined(separator: " · ")
+  }
 }
+
+/// 한 줄 — 시계 옆에 작게.
+struct InlineView: View {
+  let note: Note
+
+  var body: some View {
+    let left = note.written.filter { !$0.checked }.count
+    Label(
+      left > 0 ? "말랑캣 · 오늘 할 일 \(left)개" : "말랑캣 · \(note.title)",
+      systemImage: "pawprint.fill")
+  }
+}
+
+// MARK: - 고르기
 
 struct MalangWidgetView: View {
   @Environment(\.widgetFamily) var family
   let entry: Entry
 
   var body: some View {
-    let feed = entry.feed.notes.isEmpty ? Feed.sample : entry.feed
-    Group {
-      switch family {
-      case .systemLarge: LargeView(feed: feed)
-      case .systemMedium: MediumView(feed: feed)
-      default: SmallView(note: feed.notes[0])
-      }
+    let notes = entry.feed.notes
+    let note = notes[0]
+    // 잠금 화면은 할 일이 있는 카드를 먼저 고른다.
+    let chore = notes.first(where: { $0.isCheck && $0.total > 0 }) ?? note
+
+    switch family {
+    case .accessoryCircular:
+      CircularView(note: chore)
+    case .accessoryRectangular:
+      RectangularView(note: chore)
+    case .accessoryInline:
+      InlineView(note: chore)
+    case .systemLarge:
+      LargeView(note: note).widgetBackground(Color(hex: note.bg))
+    case .systemMedium:
+      MediumView(note: note).widgetBackground(Color(hex: note.bg))
+    default:
+      SmallView(note: note).widgetBackground(Color(hex: note.bg))
     }
-    .widgetBackground(Color(hex: feed.notes[0].bg))
   }
 }
 
@@ -268,8 +447,11 @@ struct MalangWidget: Widget {
       MalangWidgetView(entry: entry)
     }
     .configurationDisplayName("말랑 고양이 메모")
-    .description("적어 둔 메모를 홈 화면에서 바로 봅니다.")
-    .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+    .description("적어 둔 메모를 홈 화면과 잠금 화면에서 바로 봅니다.")
+    .supportedFamilies([
+      .systemSmall, .systemMedium, .systemLarge,
+      .accessoryCircular, .accessoryRectangular, .accessoryInline,
+    ])
   }
 }
 

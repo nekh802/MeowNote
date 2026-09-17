@@ -26,13 +26,30 @@ class WidgetFeed {
   static String _hex(Color c) =>
       (c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase();
 
+  /// 제목 옆 표시를 위젯이 아는 이름으로 옮긴다. 위젯은 앱의 아이콘
+  /// 꾸러미를 쓰지 못하므로 시스템 그림 이름으로 건넨다.
+  static const _badgeGlyph = {
+    'heart': 'heart.fill',
+    'sprout': 'leaf.fill',
+    'moon': 'moon.fill',
+    'bulb': 'lightbulb.fill',
+    'smile': 'face.smiling',
+    'star': 'star.fill',
+    'paw': 'pawprint.fill',
+    'cloud': 'cloud.fill',
+    'spark': 'sparkles',
+  };
+
   static Map<String, dynamic> bundle(MemoStore store) {
     final notes = <Map<String, dynamic>>[];
     for (final board in store.boards.take(_cards)) {
       final palette = CardPalette.byKey(board.colorKey);
+      final badge = CardBadge.byKey(board.badgeKey);
       final entries = store.entriesOf(board.id);
       notes.add({
         'title': board.title,
+        'badge': _badgeGlyph[board.badgeKey] ?? '',
+        'badgeColor': _hex(badge.color),
         'bg': _hex(palette.bg),
         'ink': _hex(palette.ink),
         'tint': _hex(palette.tint),
