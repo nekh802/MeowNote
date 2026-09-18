@@ -224,7 +224,8 @@ class BackgroundTheme {
   );
 
   /// 같은 흰색이되 아래로 갈수록 은빛이 도는 회백색. 파랑 기를 빼고
-  /// 세 색을 나란히 두어 강철이나 은처럼 중립적인 잿빛이 된다.
+  /// 세 색을 나란히 두어 강철이나 은처럼 중립적인 잿빛이 된다. 처음
+  /// 까는 기기의 기본 배경이다.
   static const coolWhite = BackgroundTheme(
     key: 'coolWhite',
     label: '쿨화이트',
@@ -246,5 +247,5 @@ class BackgroundTheme {
   ];
 
   static BackgroundTheme byKey(String key) =>
-      all.firstWhere((b) => b.key == key, orElse: () => paper);
+      all.firstWhere((b) => b.key == key, orElse: () => coolWhite);
 }

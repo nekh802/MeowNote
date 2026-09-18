@@ -24,7 +24,7 @@ class MemoStore extends ChangeNotifier {
   final List<Board> _boards = [];
   final List<Entry> _entries = [];
 
-  String _backgroundKey = 'paper';
+  String _backgroundKey = 'coolWhite';
 
   /// 이 기기에 이미 들어온 기본 카드 묶음의 수. 예전 파일에는 없으므로
   /// 첫 묶음만 받은 것으로 본다.
@@ -162,7 +162,7 @@ class MemoStore extends ChangeNotifier {
         ),
       );
     final settings = (j['settings'] as Map?)?.cast<String, dynamic>() ?? {};
-    _backgroundKey = (settings['backgroundKey'] ?? 'paper') as String;
+    _backgroundKey = (settings['backgroundKey'] ?? 'coolWhite') as String;
     _seededSets = (settings['seedSets'] ?? 1) as int;
     _fixups = (settings['fixups'] ?? 0) as int;
     _toldStoreVersion = (settings['toldStoreVersion'] ?? '') as String;
