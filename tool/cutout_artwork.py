@@ -41,7 +41,15 @@ class Art:
            구석에만 쓴다.
     bleach 이 사각형 안에서 흰 것만 지운다. 카드 모서리의 흰 곡선
            장식이 수염과 겹쳐 그려진 자리처럼, 통째로 지우면 그림까지
-           함께 사라지는 곳에 쓴다.
+           함께 사라지는 곳에 쓴다. 다섯 번째 값을 주면 그보다 밝은 것을
+           모두 지운다 — 옅은 색 얼룩처럼 흰색이 아닌 것도 걷어낼 때.
+    keep   이 사각형 안에서 외곽선 색인 획을 되살린다. 획 가운데가 옅게
+           칠해져 여백으로 잘못 지워진 수염 끝에 쓴다. 어두운 만큼 짙게
+           남긴다.
+    fill   이 사각형 안을 빈틈 없이 채운다. 얼굴 아래가 카드 테두리에
+           닿아 흰 털이 그 테두리 색과 함께 지워진 자리에 쓴다. 지워진
+           픽셀에는 바로 위 픽셀 색을 내려 받아, 털 색이 테두리까지
+           이어진다.
     mirror 오려낸 뒤 한 자리를 좌우로 뒤집어 다른 자리에 얹는다.
            ((L,T,R,B), 놓을 왼쪽 x) 꼴. 원본에서 옆 그림과 얽혀 도저히
            갈라낼 수 없는 자리에만 쓴다 — 그림을 새로 그리는 것이 아니라
@@ -66,12 +74,14 @@ class Art:
     """
 
     def __init__(self, box, sheet=1, grow="tlr", erase=(), wall=(), mirror=(),
-                 bleach=(), blend=0, speck=16, page=250, dark=165.0, bridge=0,
+                 bleach=(), keep=(), fill=(), blend=0, speck=16, page=250, dark=165.0, bridge=0,
                  off=16.0, step=20.0):
         self.box = box
         self.wall = wall
         self.mirror = mirror
         self.bleach = bleach
+        self.keep = keep
+        self.fill = fill
         self.blend = blend
         self.sheet = sheet
         self.grow = grow
@@ -86,7 +96,9 @@ class Art:
 
 ARTS = {
     "mochi": Art((316, 126, 500, 244)),
-    "dalgi": Art((779, 407, 983, 532)),
+    # 얼굴 아래가 카드 테두리에 닿아, 그 사이 흰 털이 테두리 색과 함께
+    # 지워진다.
+    "dalgi": Art((779, 407, 983, 532), fill=((830, 524, 953, 532),)),
     # 잠든 아이는 카드 위에 옅게 깔려 있어 몸 색이 카드와 거의 같다.
     # 기준을 좁게 잡아야 외곽선에서 멈춘다.
     "byeol": Art((1098, 362, 1460, 532), dark=0.0, off=11.0, step=9.0),
@@ -94,19 +106,19 @@ ARTS = {
     # 모서리의 흰 곡선 장식이 따라 들어와, 그 자리에서는 흰 것만 지운다.
     "sol": Art((48, 748, 250, 916), bleach=((48, 748, 76, 916),)),
     "trio": Art((551, 785, 984, 916)),
-    # 왼쪽 수염은 옆 고양이 수염과 획이 겹쳐 그려져 있어, 어디서 잘라도
-    # 두 아이의 수염이 한 덩어리로 남는다. 왼쪽은 통째로 비우고, 이 아이
-    # 오른쪽 수염을 뒤집어 그 자리에 얹는다.
     # 왼쪽 수염은 옆 고양이 수염과 같은 획으로 겹쳐 그려져 있어, 어디서
-    # 잘라도 두 아이 수염이 한 덩어리로 남는다. 수염이 지나는 띠를 통째로
-    # 비우고, 이 아이 오른쪽에서 몸·외곽선·수염이 한 덩이로 든 띠를 떠다
-    # 좌우로 뒤집어 얹는다. 회색 모자가 따라오지 않도록 띠는 그 아래에서
-    # 시작한다.
+    # 잘라도 두 아이 수염이 한 덩어리로 남는다. 왼쪽 볼을 통째로 비우고,
+    # 이 아이 오른쪽 볼에서 볼터치·외곽선·수염이 한 덩이로 든 띠를 떠다
+    # 얼굴 한가운데를 축으로 뒤집어 얹는다. 귀 위의 옅은 초록 땀방울은
+    # 밝은 것만 걷는다.
     "nabi": Art((812, 793, 984, 916), speck=20,
+                # 축은 x = 900 — 양쪽 외곽선 바깥 끝이 840 과 960 이다.
+                # 띠의 위아래 끝은 양쪽 외곽선이 같은 자리에 오는 줄이다.
                 wall=((796, 770, 812, 930), (812, 785, 830, 930),
-                      (812, 856, 843, 898)),
-                blend=5,
-                mirror=(((944, 856, 980, 898), 812),)),
+                      (812, 851, 845, 891), (830, 891, 835, 896)),
+                bleach=((884, 796, 918, 822, 180),),
+                blend=4,
+                mirror=(((952, 851, 985, 891), 816),)),
     # 왼쪽 위로 카드 괘선이 지나간다.
     "kongi": Art((1262, 761, 1468, 915), erase=((1262, 776, 1298, 784),)),
     # 구름과 손글씨 제목. 수채 번짐이 옅어 기준을 더 좁게 잡는다.
@@ -120,11 +132,20 @@ ARTS = {
     "bori": Art((1040, 388, 1276, 538), sheet=2,
                 bleach=((1040, 492, 1085, 538), (1155, 524, 1180, 538))),
     # 카드 괘선과 모서리 장식이 함께 걸린다.
+    # 왼쪽 수염 사이에 카드의 보랏빛이, 오른쪽 수염 바깥에 카드 모서리
+    # 장식의 흰 곡선이 남는다.
     "mongi": Art((274, 845, 509, 978), sheet=2,
-                 erase=((274, 845, 326, 858), (486, 940, 509, 972))),
+                 erase=((274, 845, 326, 858), (486, 940, 509, 972)),
+                 bleach=((292, 929, 311, 942, 190), (474, 924, 482, 937, 190),
+                         (468, 940, 476, 948, 190), (466, 952, 494, 972, 190),
+                         (318, 968, 342, 977, 190))),
     # 오른쪽 수염 아래와 오른쪽 아래 구석에 남는 흰 얼룩.
+    # 오른쪽 가운데 수염 끝이 옅게 칠해져 여백과 함께 지워진다.
     "dalrae": Art((722, 848, 971, 978), sheet=2,
-                  erase=((947, 936, 955, 946), (958, 957, 971, 969))),
+                  erase=((947, 939, 955, 946), (958, 957, 971, 969),
+                         (720, 896, 738, 908)),
+                  bleach=((738, 930, 746, 937, 190),),
+                  keep=((938, 929, 958, 939),)),
     # 몸 색이 노란 카드와 가까워 기준을 좁게 잡는다.
     # 외곽선을 점선처럼 끊어 그린 아이. 몸 색도 노란 카드와 가까워
     # 틈을 막고 지운 뒤 되돌린다.
@@ -284,17 +305,36 @@ def cut(name, art):
                 alpha[y * w + x] = 0
     close_pinholes(alpha, w, h)
     drop_specks(alpha, w, h, art.speck)
-    soften(px, alpha, w, h)
+    soften(px, alpha, walled, w, h)
     # 원본이 반쯤 투명한 자리는 그만큼 옅게 남긴다.
     for i in range(w * h):
         if src_alpha[i] < 255:
             alpha[i] = alpha[i] * src_alpha[i] // 255
-    for x1, y1, x2, y2 in art.bleach:
-        for y in range(max(0, y1 - ct), min(h, y2 - ct)):
-            for x in range(max(0, x1 - cl), min(w, x2 - cl)):
+    for x1, y1, x2, y2, *light in art.bleach:
+        light = light[0] if light else 232
+        for i in cells(x1, y1, x2, y2, cl, ct, w, h):
+            if lum[i] > light:
+                alpha[i] = 0
+    for rect in art.keep:
+        for i in cells(*rect, cl, ct, w, h):
+            # 종이 밝기(230)에서 획 밝기(150)까지를 알파 0~255 로 편다.
+            ink = round(255 * min(1.0, max(0.0, (230 - lum[i]) / 80)))
+            alpha[i] = max(alpha[i], ink)
+    for x1, y1, x2, y2 in art.fill:
+        for x in range(max(0, x1 - cl), min(w, x2 - cl)):
+            # 사각형 바로 위에서 가장 가까운 흰 털. 입이나 발 획 아래로도
+            # 획 색이 아니라 털 색이 내려온다.
+            y = y1 - ct - 1
+            while y >= 0 and not (alpha[y * w + x] > 240
+                                  and lum[y * w + x] > 235):
+                y -= 1
+            fur = raw[(y * w + x) * 3:(y * w + x) * 3 + 3] if y >= 0 else None
+            for y in range(max(0, y1 - ct), min(h, y2 - ct)):
                 i = y * w + x
-                if lum[i] > 232:
-                    alpha[i] = 0
+                # 남아 있던 밝은 픽셀도 테두리 색이 섞여 있어 함께 덮는다.
+                if fur and lum[i] > 200:
+                    raw[i * 3:i * 3 + 3] = fur
+                alpha[i] = 255
     for (sl, st, sr, sb), dl in art.mirror:
         # 오른쪽 끝 몇 칸은 원래 그림과 섞어 이음매가 선으로 보이지 않게 한다.
         last = dl + (sr - 1 - sl)
@@ -315,11 +355,20 @@ def cut(name, art):
                 if art.blend and inset < art.blend:
                     t = (inset + 1) / (art.blend + 1)
                 d, sidx = dy * w + dx, sy * w + sx
-                alpha[d] = round(alpha[d] * (1 - t) + a * t)
+                # 이음매 쪽 원래 픽셀은 막은 자리와 닿아 옅어져 있을 수 있다.
+                # 색만 섞고 알파는 짙은 쪽을 따라 틈이 비치지 않게 한다.
+                alpha[d] = max(alpha[d], a)
                 j, k = d * 3, sidx * 3
                 for c in range(3):
                     raw[j + c] = round(raw[j + c] * (1 - t) + raw[k + c] * t)
     return crop_png(name, art, raw, alpha, w, cl, ct)
+
+
+def cells(x1, y1, x2, y2, cl, ct, w, h):
+    """원본 좌표 사각형 (LTRB) 안의 픽셀 번호."""
+    for y in range(max(0, y1 - ct), min(h, y2 - ct)):
+        for x in range(max(0, x1 - cl), min(w, x2 - cl)):
+            yield y * w + x
 
 
 def swell(lum, w, h, dark, by):
@@ -414,12 +463,13 @@ def drop_specks(alpha, w, h, least):
                 alpha[i] = 0
 
 
-def soften(px, alpha, w, h):
+def soften(px, alpha, walled, w, h):
     """외곽선 바깥에 남는 안티에일리어싱 띠의 알파를 실제 섞인 비율로 맞춘다.
 
     지운 이웃 색을 여백 B, 남긴 이웃 중 B 에서 가장 먼 색을 그림 F 로 보고
     이 픽셀이 B 와 F 사이 어디쯤인지로 알파를 정한다. 여백에 가까운 띠는
-    옅어지고, 색이 뚜렷한 작은 장식은 그대로 남는다.
+    옅어지고, 색이 뚜렷한 작은 장식은 그대로 남는다. 막은 자리는 여백이
+    아니라 나중에 다른 그림이 얹힐 자리라 따지지 않는다.
     """
     edge = {}
     for y in range(h):
@@ -436,6 +486,8 @@ def soften(px, alpha, w, h):
                         continue
                     j = ny * w + nx
                     k = j * 3
+                    if walled[j]:
+                        continue
                     if alpha[j]:
                         kept.append(k)
                     else:

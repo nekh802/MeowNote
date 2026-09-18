@@ -12,7 +12,7 @@ import '../models/memo.dart';
 /// 원본은 항상 이 기기의 파일이고, 서버는 나중에 붙을 중계소다. 그래서
 /// 화면은 네트워크를 기다리지 않고, 비행기 모드에서도 전부 동작한다.
 /// 모든 레코드가 [Board.updatedAt] / [Board.deletedAt] 을 들고 있어서
-/// 나중에 델타 동기화와 백업 복원을 그대로 얹을 수 있다.
+/// 나중에 델타 동기화를 그대로 얹을 수 있다.
 class MemoStore extends ChangeNotifier {
   MemoStore._();
 
@@ -31,7 +31,6 @@ class MemoStore extends ChangeNotifier {
   int _seededSets = seedSets;
   int _fixups = fixups;
   String _deviceId = '';
-  DateTime? _lastBackupAt;
 
   /// 스토어에 올라온 판 가운데 이미 한 번 알린 것. 같은 판을 켤 때마다
   /// 다시 묻지 않으려고 적어 둔다.
@@ -51,7 +50,6 @@ class MemoStore extends ChangeNotifier {
   bool get isLoaded => _loaded;
   String get backgroundKey => _backgroundKey;
   String get deviceId => _deviceId;
-  DateTime? get lastBackupAt => _lastBackupAt;
   String get toldStoreVersion => _toldStoreVersion;
   BoardSort get sort => _sort;
 
@@ -173,8 +171,6 @@ class MemoStore extends ChangeNotifier {
       orElse: () => BoardSort.edited,
     );
     _deviceId = (j['deviceId'] ?? '') as String;
-    final backup = settings['lastBackupAt'];
-    _lastBackupAt = backup == null ? null : DateTime.tryParse(backup as String);
   }
 
   /// 지금까지 넣어 둔 기본 카드 묶음의 수. 이미 쓰던 기기에도 새로 추가된
@@ -185,11 +181,13 @@ class MemoStore extends ChangeNotifier {
   /// [_applyFixups] 가 한 번 돈다.
   static const fixups = 3;
 
-  /// 묶음마다 어디서 시작하는지. 카드를 걷어내면 묶음 크기가 달라지므로
-  /// 6의 배수로 셈하지 않고 자리를 그대로 적어 둔다.
+  /// 묶음마다 어디서 시작하는지. 첫 묶음이 여섯 장, 두 번째가 다섯 장이라
+  /// 한 묶음의 크기로 셈하지 않고 자리를 그대로 적어 둔다.
   static const _setStarts = [0, 6];
 
-  /// 첫 실행에 놓이는 열두 장. 컨셉아트 두 장의 구성 그대로다.
+  /// 첫 실행에 놓이는 열한 장. 컨셉아트 두 장의 구성 그대로다 — 한 장은
+  /// 나중에 걷어냈고, 이미 받아 간 기기에서만 [_applyFixups] 가 흔적으로
+  /// 남긴다. 이 구성은 test/seed_cards_test.dart 가 통째로 지킨다.
   void _seed({int from = 0}) {
     final seeds =
         <
@@ -248,9 +246,9 @@ class MemoStore extends ChangeNotifier {
             title: '오늘의 기분',
             subtitle: '',
             color: 'mint',
-            cat: 'nabi',
+            cat: 'haneul',
             badge: 'smile',
-            pose: CatPose.trio,
+            pose: CatPose.peekBottom,
             kind: BoardKind.note,
             lines: <String>[],
           ),
@@ -265,13 +263,16 @@ class MemoStore extends ChangeNotifier {
             lines: <String>[],
           ),
           // 두 번째 이야기.
+          // 세 마리는 그림 한 장이라 자리가 아니라 고양이로 고른다. 그래서
+          // 자리가 trio 이면 cat 은 그려지지 않고, 한 마리로 되돌릴 때
+          // 어느 아이로 돌아갈지만 알려 준다.
           (
             title: '기분 좋은 시작',
             subtitle: '오늘의 작은 목표',
             color: 'sky',
             cat: 'haneul',
             badge: 'spark',
-            pose: CatPose.peekBottom,
+            pose: CatPose.trio,
             kind: BoardKind.hearts,
             lines: <String>[],
           ),
@@ -291,7 +292,7 @@ class MemoStore extends ChangeNotifier {
             color: 'lilac',
             cat: 'mongi',
             badge: 'spark',
-            pose: CatPose.peekBottom,
+            pose: CatPose.watermark,
             kind: BoardKind.checklist,
             lines: <String>[],
           ),
@@ -300,8 +301,8 @@ class MemoStore extends ChangeNotifier {
             subtitle: '하나씩 해도 괜찮아',
             color: 'mint',
             cat: 'dalrae',
-            badge: 'sprout',
-            pose: CatPose.peekBottom,
+            badge: 'none',
+            pose: CatPose.peekTop,
             kind: BoardKind.note,
             lines: <String>[],
           ),
@@ -349,7 +350,7 @@ class MemoStore extends ChangeNotifier {
     const movedBadges = {'flower': 'spark', 'clover': 'sprout'};
     for (final board in _boards) {
       // 노을과 '마음 비우기'는 걷어냈다. 지운 흔적만 남기므로 예전
-      // 백업에서 되살릴 수 있다.
+      // 되살릴 수 있다.
       if (board.title == '마음 비우기' && board.subtitle == '솔직한 마음을 적어요') {
         board.deletedAt ??= DateTime.now().toUtc();
       }
@@ -442,8 +443,8 @@ class MemoStore extends ChangeNotifier {
     _bump(e.boardId);
   }
 
-  /// 소프트 삭제. 물리 삭제를 하면 예전 백업을 복원할 때 지운 줄이
-  /// 되살아나므로, 지운 흔적을 남겨 둔다.
+  /// 소프트 삭제. 흔적을 남겨 두어야 스낵바에서 바로 되돌릴 수 있고,
+  /// 나중에 다른 기기와 맞출 때 지웠다는 사실이 함께 전해진다.
   void deleteEntry(String entryId) {
     final e = _entry(entryId);
     if (e == null) return;
@@ -494,7 +495,7 @@ class MemoStore extends ChangeNotifier {
     _persist();
   }
 
-  /// 카드를 지운다. 줄과 마찬가지로 흔적만 남기므로 예전 백업에서
+  /// 카드를 지운다. 줄과 마찬가지로 흔적만 남기므로 스낵바에서
   /// 되살릴 수 있고, 다른 기기와 맞출 때 지운 사실이 함께 전해진다.
   void deleteBoards(Iterable<String> boardIds) {
     final now = DateTime.now().toUtc();
@@ -532,11 +533,6 @@ class MemoStore extends ChangeNotifier {
     _persist();
   }
 
-  void markBackedUp(DateTime at) {
-    _lastBackupAt = at;
-    _persist();
-  }
-
   Board? _board(String id) => _boards.where((b) => b.id == id).firstOrNull;
   Entry? _entry(String id) => _entries.where((e) => e.id == id).firstOrNull;
 
@@ -550,7 +546,7 @@ class MemoStore extends ChangeNotifier {
     _scheduleSave();
   }
 
-  // ---------------------------------------------------------------- 저장/백업
+  // ------------------------------------------------------------------- 저장
 
   /// 타자 한 글자마다 파일을 쓰지 않도록 묶어서 저장한다.
   void _scheduleSave() {
@@ -568,8 +564,7 @@ class MemoStore extends ChangeNotifier {
     await tmp.rename(f.path);
   }
 
-  /// 설계 문서의 백업 봉투 포맷. 저장 파일과 백업 파일이 같은 모양이라
-  /// 복원 코드를 한 벌만 유지하면 된다.
+  /// 설계 문서의 봉투 포맷. 저장 파일이 이 모양으로 쌓인다.
   Map<String, dynamic> toBundle() => {
     'schemaVersion': schemaVersion,
     'appVersion': appVersion,
@@ -582,87 +577,14 @@ class MemoStore extends ChangeNotifier {
       'fixups': _fixups,
       'toldStoreVersion': _toldStoreVersion,
       'sort': _sort.name,
-      'lastBackupAt': _lastBackupAt?.toIso8601String(),
     },
     'boards': _boards.map((b) => b.toJson()).toList(),
     'entries': _entries.map((e) => e.toJson()).toList(),
   };
-
-  /// 복원 — 병합 모드.
-  ///
-  /// 규칙은 넷뿐이다.
-  ///   1. 양쪽에 같은 id → updatedAt 이 큰 쪽이 이긴다
-  ///   2. 백업에만 있음 → 넣는다
-  ///   3. 로컬에만 있음 → 그대로 둔다 (복원은 절대 삭제하지 않는다)
-  ///   4. 알 수 없는 schemaVersion → 건드리지 않고 거절한다
-  RestoreReport restoreMerge(Map<String, dynamic> bundle) {
-    final version = (bundle['schemaVersion'] ?? 0) as int;
-    if (version > schemaVersion) {
-      throw const FormatException('더 새로운 버전의 백업이라 복원할 수 없어요.');
-    }
-
-    var added = 0, updated = 0, skipped = 0;
-
-    void mergeInto<T>({
-      required List<T> target,
-      required List raw,
-      required T Function(Map<String, dynamic>) parse,
-      required String Function(T) idOf,
-      required DateTime Function(T) updatedOf,
-    }) {
-      final byId = {for (final item in target) idOf(item): item};
-      for (final r in raw) {
-        final incoming = parse(r as Map<String, dynamic>);
-        final existing = byId[idOf(incoming)];
-        if (existing == null) {
-          target.add(incoming);
-          added++;
-        } else if (updatedOf(incoming).isAfter(updatedOf(existing))) {
-          target[target.indexOf(existing)] = incoming;
-          updated++;
-        } else {
-          skipped++;
-        }
-      }
-    }
-
-    mergeInto<Board>(
-      target: _boards,
-      raw: bundle['boards'] as List? ?? [],
-      parse: Board.fromJson,
-      idOf: (b) => b.id,
-      updatedOf: (b) => b.updatedAt,
-    );
-    mergeInto<Entry>(
-      target: _entries,
-      raw: bundle['entries'] as List? ?? [],
-      parse: Entry.fromJson,
-      idOf: (e) => e.id,
-      updatedOf: (e) => e.updatedAt,
-    );
-
-    _persist();
-    return RestoreReport(added: added, updated: updated, skipped: skipped);
-  }
 
   @override
   void dispose() {
     _saveTimer?.cancel();
     super.dispose();
   }
-}
-
-class RestoreReport {
-  const RestoreReport({
-    required this.added,
-    required this.updated,
-    required this.skipped,
-  });
-
-  final int added;
-  final int updated;
-  final int skipped;
-
-  @override
-  String toString() => '새로 $added개 · 갱신 $updated개 · 그대로 $skipped개';
 }

@@ -140,6 +140,53 @@ void main() {
     await close(tester);
   });
 
+  testWidgets('글자 사이에서 엔터를 누르면 뒷 문장이 아랫 줄로 간다', (tester) async {
+    await open(tester, const Size(390, 1000));
+    final board = MemoStore.instance.boards.first;
+
+    for (var i = 0; i < 2; i++) {
+      await addRow(tester);
+    }
+    await tester.enterText(find.byType(TextField).first, '앞 문장 뒷 문장');
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '끝 줄');
+    await tester.pumpAndSettle();
+
+    // 키보드가 커서 자리에 줄바꿈을 끼운 것처럼 값을 보낸다.
+    await tester.showKeyboard(find.byType(TextField).first);
+    final now = tester
+        .widget<TextField>(find.byType(TextField).first)
+        .controller!
+        .text;
+    final at = now.indexOf('뒷');
+    tester.testTextInput.updateEditingValue(
+      TextEditingValue(
+        text: '${now.substring(0, at)}\n${now.substring(at)}',
+        selection: TextSelection.collapsed(offset: at + 1),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final texts = MemoStore.instance
+        .entriesOf(board.id)
+        .map((e) => e.text)
+        .toList();
+    expect(texts, ['앞 문장 ', '뒷 문장', '끝 줄']);
+
+    // 옮겨 간 문장이 칸에 보이고, 커서는 그 문장 맨 앞에 선다.
+    final fields = tester
+        .widgetList<EditableText>(find.byType(EditableText))
+        .toList();
+    final moved = fields[1];
+    expect(moved.controller.text.replaceAll('\u200b', ''), '뒷 문장');
+    expect(moved.focusNode.hasFocus, isTrue);
+    expect(
+      moved.controller.text.substring(0, moved.controller.selection.baseOffset),
+      isNot(contains('뒷')),
+    );
+    await close(tester);
+  });
+
   testWidgets('엔터를 누르면 커서가 새로 생긴 줄로 내려간다', (tester) async {
     await open(tester, const Size(390, 900));
 
@@ -262,7 +309,10 @@ void main() {
 
     // 홈으로 튕겨 나가지 않고 찾던 자리 그대로.
     expect(
-      tester.widget<TextField>(find.byKey(const Key('memo-search'))).controller!.text,
+      tester
+          .widget<TextField>(find.byKey(const Key('memo-search')))
+          .controller!
+          .text,
       '쉬어',
     );
     expect(find.text('하나씩 해볼까'), findsNothing);
@@ -287,10 +337,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(MemoStore.instance.boards.length, before - 2);
-    expect(
-      MemoStore.instance.boards.any((b) => b.title == '내일 또 만나'),
-      isFalse,
-    );
+    expect(MemoStore.instance.boards.any((b) => b.title == '내일 또 만나'), isFalse);
     await close(tester);
   });
 

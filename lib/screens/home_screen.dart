@@ -7,7 +7,6 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/app_update.dart';
-import '../data/backup.dart';
 import '../data/memo_store.dart';
 import '../data/share_text.dart';
 import '../data/when.dart';
@@ -44,12 +43,14 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// 커서를 넣을 줄과, 그 줄 글자 중 몇 번째 앞에 세울지.
+typedef _Caret = ({String entryId, int offset});
+
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _store = MemoStore.instance;
-  final _backup = BackupService();
 
   /// 방금 추가한 줄. 생기자마자 커서가 들어가도록 한 번만 쓰인다.
-  String? _focusEntryId;
+  _Caret? _focus;
   String? _selectedBoardId;
 
   /// 홈 화면 위젯은 타자 한 글자마다가 아니라 잠깐 쉴 때 한 번 갱신한다.
@@ -100,17 +101,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 앱이 물러날 때가 백업을 뜨기 가장 좋은 시점이다. 내용이 그대로면
-    // backupIfChanged 안에서 해시를 비교해 조용히 건너뛴다.
+    // 앱이 물러날 때 적어 둔 것을 확실히 파일에 내려놓는다.
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.inactive) {
-      unawaited(
-        _store.flush().then((_) async {
-          await WidgetFeed.publish(_store);
-          await _backup.backupIfChanged();
-        }),
-      );
+      unawaited(_store.flush().then((_) => WidgetFeed.publish(_store)));
     }
   }
 
@@ -141,14 +136,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     pinned: _store.pinnedBoards,
                     loose: _store.looseBoards,
                     selectedId: selected?.id,
-                    lastBackupAt: _store.lastBackupAt,
                     onPick: _pickBoard,
                     onPin: (b) {
                       HapticFeedback.lightImpact();
                       setState(() => _store.togglePin(b.id));
                     },
                     onPickBackground: _openBackgroundSheet,
-                    onExport: _backupToNotes,
+                    onExport: _exportAllBoards,
                     onSort: _openMoreSheet,
                     onAddBoard: _addBoard,
                     matches: _matches,
@@ -164,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         bg: bg,
                         board: selected,
                         entries: _store.entriesOf(selected.id),
-                        focusEntryId: _focusEntryId,
+                        focus: _focus,
                         onBack: _openLibrary,
                         onAdd: () => _addEntry(selected),
                         onEnter: _splitEntry,
@@ -210,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _selectedBoardId = board.id;
-      _focusEntryId = null;
+      _focus = null;
     });
     _slideTo(memoPage);
   }
@@ -228,26 +222,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _addEntry(Board board) {
     final entry = _store.addEntry(board.id);
-    setState(() => _focusEntryId = entry.id);
+    setState(() => _focus = (entryId: entry.id, offset: 0));
   }
 
   /// 엔터와 붙여넣기 — 누른 줄 아래에 줄을 놓고 커서를 마지막으로 옮긴다.
-  /// [rest] 가 비면 엔터 한 번, 여럿이면 붙여넣은 나머지 줄들이다.
-  void _splitEntry(Entry at, List<String> rest) {
+  /// [rest] 는 커서 뒤에 있던 글이 줄마다 나뉜 것이고, [caret] 은 마지막
+  /// 줄에서 커서가 설 자리다. 글자 사이에서 누른 엔터면 옮겨 간 문장 맨
+  /// 앞(0)이다.
+  void _splitEntry(Entry at, List<String> rest, int caret) {
     final made = _store.insertEntriesAfter(at.id, rest);
-    setState(() => _focusEntryId = made.last.id);
-  }
-
-  /// 메모 전부를 담은 백업 파일을 공유 시트에 넘긴다.
-  Future<void> _export() async {
-    try {
-      await _backup.exportToShareSheet();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('내보내기에 실패했어요: $e')));
-    }
+    setState(() => _focus = (entryId: made.last.id, offset: caret));
   }
 
   /// 카드 한 장을 글로 옮겨 공유 시트에 넘긴다.
@@ -335,28 +319,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   _openDeleteSheet();
                 },
               ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.description_outlined),
-                title: const Text('백업 파일 내보내기'),
-                subtitle: const Text('되돌릴 수 있는 파일 한 벌'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _export();
-                },
-              ),
-              const SizedBox(height: 22),
-              const _SheetLabel('선물하기'),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.card_giftcard_rounded),
-                title: const Text('친구에게 앱 보내기'),
-                subtitle: const Text('앱스토어 링크를 건네요'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _gift();
-                },
-              ),
             ],
           ),
         ),
@@ -397,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   ///
   /// 애플이 다른 앱에서 메모 앱에 글을 써 넣는 길을 열어 두지 않아,
   /// 받는 곳으로 '메모'를 고르는 마지막 한 걸음은 사람이 한다.
-  Future<void> _backupToNotes() async {
+  Future<void> _exportAllBoards() async {
     try {
       await shareAllBoards(_store.boards, _store.entriesOf);
     } catch (e) {
@@ -476,29 +438,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ).showSnackBar(SnackBar(content: Text('메모 $gone장을 지웠어요')));
   }
 
-  /// 앱스토어 페이지를 친구에게 건넨다.
-  ///
-  /// 앱 안에서 곧바로 앱을 사 주는 길은 애플이 열어 두지 않았다. 링크를
-  /// 받은 사람이 그 자리에서 내려받거나 앱스토어의 '앱 선물하기'를 쓴다.
-  Future<void> _gift() async {
-    final release = await AppUpdate.lookUp(appBundleId);
-    if (!mounted) return;
-    if (release == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('아직 앱스토어에 올라가지 않아 보낼 링크가 없어요')),
-      );
-      return;
-    }
-    try {
-      await shareGift(release.page);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('보내지 못했어요: $e')));
-    }
-  }
-
   Future<void> _openBackgroundSheet() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -544,7 +483,6 @@ class _LibraryPage extends StatefulWidget {
     required this.pinned,
     required this.loose,
     required this.selectedId,
-    required this.lastBackupAt,
     required this.onPick,
     required this.onPin,
     required this.onPickBackground,
@@ -559,7 +497,6 @@ class _LibraryPage extends StatefulWidget {
   final List<Board> pinned;
   final List<Board> loose;
   final String? selectedId;
-  final DateTime? lastBackupAt;
   final void Function(Board) onPick;
   final void Function(Board) onPin;
   final VoidCallback onPickBackground;
@@ -698,11 +635,7 @@ class _LibraryPageState extends State<_LibraryPage>
                   secondChild: const SizedBox(width: double.infinity),
                 ),
                 const SizedBox(height: 22),
-                _Footer(
-                  bg: bg,
-                  showNotes: wide,
-                  lastBackupAt: widget.lastBackupAt,
-                ),
+                _Footer(bg: bg, showNotes: wide),
               ],
             ),
           ),
@@ -1059,7 +992,7 @@ class _MemoPage extends StatelessWidget {
     required this.bg,
     required this.board,
     required this.entries,
-    required this.focusEntryId,
+    required this.focus,
     required this.onBack,
     required this.onAdd,
     required this.onEnter,
@@ -1071,10 +1004,10 @@ class _MemoPage extends StatelessWidget {
   final BackgroundTheme bg;
   final Board board;
   final List<Entry> entries;
-  final String? focusEntryId;
+  final _Caret? focus;
   final VoidCallback onBack;
   final VoidCallback onAdd;
-  final void Function(Entry, List<String>) onEnter;
+  final void Function(Entry, List<String>, int) onEnter;
   final VoidCallback onExport;
 
   /// 이 메모를 통째로 지운다.
@@ -1123,7 +1056,7 @@ class _MemoPage extends StatelessWidget {
                       key: ValueKey(board.id),
                       board: board,
                       entries: entries,
-                      focusEntryId: focusEntryId,
+                      focus: focus,
                       onAdd: onAdd,
                       onEnter: onEnter,
                       onExport: onExport,
@@ -1205,7 +1138,7 @@ class _Header extends StatelessWidget {
                 const SizedBox(width: 6),
                 _TopAction(
                   icon: Icons.ios_share,
-                  tooltip: '전체 백업하기',
+                  tooltip: '전체 내보내기',
                   bg: bg,
                   onTap: onExport,
                 ),
@@ -1282,7 +1215,7 @@ class _BoardCard extends StatefulWidget {
     super.key,
     required this.board,
     required this.entries,
-    required this.focusEntryId,
+    required this.focus,
     required this.onAdd,
     required this.onEnter,
     required this.onExport,
@@ -1292,9 +1225,9 @@ class _BoardCard extends StatefulWidget {
 
   final Board board;
   final List<Entry> entries;
-  final String? focusEntryId;
+  final _Caret? focus;
   final VoidCallback onAdd;
-  final void Function(Entry, List<String>) onEnter;
+  final void Function(Entry, List<String>, int) onEnter;
   final VoidCallback onExport;
 
   /// 이 메모를 통째로 지운다.
@@ -1513,9 +1446,13 @@ class _BoardCardState extends State<_BoardCard> {
                               board: board,
                               palette: p,
                               autofocus:
-                                  widget.entries[i].id == widget.focusEntryId,
-                              onEnter: (rest) =>
-                                  widget.onEnter(widget.entries[i], rest),
+                                  widget.entries[i].id == widget.focus?.entryId,
+                              caret: widget.focus?.offset ?? 0,
+                              onEnter: (rest, caret) => widget.onEnter(
+                                widget.entries[i],
+                                rest,
+                                caret,
+                              ),
                             ),
                           // 컨셉아트처럼 빈 줄도 괘선으로 남겨 둔다. 여기엔
                           // 줄 앞 표시를 찍지 않는다 — 아직 만든 줄이 아니라
@@ -1837,6 +1774,7 @@ class _EntryRow extends StatefulWidget {
     required this.board,
     required this.palette,
     required this.autofocus,
+    required this.caret,
     required this.onEnter,
   });
 
@@ -1845,9 +1783,13 @@ class _EntryRow extends StatefulWidget {
   final CardPalette palette;
   final bool autofocus;
 
-  /// 엔터를 누르거나 여러 줄을 붙여넣은 순간. 첫 줄은 이 칸에 남고,
-  /// 나머지 줄들이 넘어간다.
-  final void Function(List<String>) onEnter;
+  /// [autofocus] 로 커서를 받을 때 글자 몇 번째 앞에 세울지.
+  final int caret;
+
+  /// 엔터를 누르거나 여러 줄을 붙여넣은 순간. 커서 앞 글은 이 칸에 남고,
+  /// 뒤의 글이 줄마다 넘어간다. 두 번째 값은 넘어간 마지막 줄에서 커서가
+  /// 있던 자리다.
+  final void Function(List<String> rest, int caret) onEnter;
 
   @override
   State<_EntryRow> createState() => _EntryRowState();
@@ -1886,7 +1828,13 @@ class _EntryRowState extends State<_EntryRow> {
     _prev = _c.text;
     _c.addListener(_keepCaretAfterMark);
     _focus.addListener(_onFocusChanged);
-    if (widget.autofocus) _grabFocusSoon();
+    if (widget.autofocus) {
+      // 초점을 받을 때 커서 자리가 비어 있으면 글 끝에 선다. 미리 세워
+      // 두어야 글자 사이에서 엔터를 눌러 넘어온 문장 맨 앞에 선다.
+      final at = widget.caret.clamp(0, widget.entry.text.length);
+      _c.selection = TextSelection.collapsed(offset: _mark.length + at);
+      _grabFocusSoon();
+    }
   }
 
   @override
@@ -1977,9 +1925,19 @@ class _EntryRowState extends State<_EntryRow> {
       // 한 줄에 뭉치지 않는다.
       final parts = text.split('\n');
       final head = parts.first;
+      // 커서가 마지막 줄 안 어디에 있었는지. 끝에서 누른 엔터나 붙여넣기는
+      // 그 줄 끝, 글자 사이에서 누른 엔터는 옮겨 가는 문장 맨 앞이다.
+      final sel = _c.value.selection;
+      final before = sel.isValid
+          ? v.substring(0, sel.baseOffset).replaceAll(_mark, '').length
+          : text.length;
+      final caret = (before - (text.lastIndexOf('\n') + 1)).clamp(
+        0,
+        parts.last.length,
+      );
       _put(head);
       _save(head);
-      widget.onEnter(parts.skip(1).toList());
+      widget.onEnter(parts.skip(1).toList(), caret);
       return;
     }
     // 표식이 사라졌으면 되살린다. 조합 중에는 손대지 않는다 — 값을
@@ -2235,56 +2193,37 @@ class _CheckBox extends StatelessWidget {
 // ------------------------------------------------------------------- 꼬리말
 
 class _Footer extends StatelessWidget {
-  const _Footer({
-    required this.bg,
-    required this.showNotes,
-    required this.lastBackupAt,
-  });
+  const _Footer({required this.bg, required this.showNotes});
 
   final BackgroundTheme bg;
   final bool showNotes;
-  final DateTime? lastBackupAt;
 
   @override
   Widget build(BuildContext context) {
-    final t = lastBackupAt?.toLocal();
-    final backup = t == null
-        ? '아직 백업한 적이 없어요'
-        : '마지막 백업 ${t.month}월 ${t.day}일 '
-              '${t.hour.toString().padLeft(2, '0')}:'
-              '${t.minute.toString().padLeft(2, '0')}';
+    // 좁은 화면에서는 귀퉁이 쪽지를 접으므로 꼬리말에 남는 것이 없다.
+    if (!showNotes) return const SizedBox.shrink();
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if (showNotes)
-          Expanded(
-            child: Transform.rotate(
-              angle: -.03,
-              alignment: Alignment.centerLeft,
-              child: _CornerNote(
-                '오늘도\n말랑한 하루 ♡',
-                bg: bg,
-                align: TextAlign.left,
-              ),
-            ),
+        Expanded(
+          child: Transform.rotate(
+            angle: -.03,
+            alignment: Alignment.centerLeft,
+            child: _CornerNote('오늘도\n말랑한 하루 ♡', bg: bg, align: TextAlign.left),
           ),
-        Text(
-          backup,
-          style: TextStyle(fontSize: 12, color: bg.onBackgroundMuted),
         ),
-        if (showNotes)
-          Expanded(
-            child: Transform.rotate(
-              angle: .03,
-              alignment: Alignment.centerRight,
-              child: _CornerNote(
-                '행복은\n언제나 여기 있어 ♡',
-                bg: bg,
-                align: TextAlign.right,
-              ),
+        Expanded(
+          child: Transform.rotate(
+            angle: .03,
+            alignment: Alignment.centerRight,
+            child: _CornerNote(
+              '행복은\n언제나 여기 있어 ♡',
+              bg: bg,
+              align: TextAlign.right,
             ),
           ),
+        ),
       ],
     );
   }
