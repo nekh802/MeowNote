@@ -6,7 +6,7 @@ import 'package:malang_cat/widgets/cat_face.dart';
 
 /// 앱을 처음 깔면 놓이는 카드들.
 ///
-/// 이 열한 장은 앱을 켜자마자 눈에 들어오는 첫인상이라, 한 장을 손보다
+/// 이 열두 장은 앱을 켜자마자 눈에 들어오는 첫인상이라, 한 장을 손보다
 /// 옆 장이 함께 어긋나는 일이 없도록 구성을 통째로 적어 둔다. 여기가
 /// 어긋나면 바꾼 쪽이 맞는지 이 표를 보고 정한다.
 void main() {
@@ -104,14 +104,25 @@ void main() {
       CatPose.peekTop,
       BoardKind.note,
     ),
+    // 세 번째 묶음.
+    (
+      '소소한 행복',
+      '오늘 나를 웃게 한 것',
+      'nabi',
+      'blossom',
+      'paw',
+      CatPose.peekBottom,
+      BoardKind.hearts,
+    ),
   ];
 
   final store = MemoStore.instance;
 
   setUp(store.debugSeed);
 
-  test('갓 깐 기기에는 이 열한 장이 이 차례로 놓인다', () {
-    final got = store.boards
+  test('갓 깐 기기에는 이 열두 장이 이 차례로 놓인다', () {
+    final laid = [...store.boards]..sort((a, b) => a.order.compareTo(b.order));
+    final got = laid
         .map(
           (b) => (
             b.title,
@@ -125,6 +136,11 @@ void main() {
         )
         .toList();
     expect(got, seeded);
+  });
+
+  test('할 일 카드와 나비 카드는 처음부터 맨 위에 붙박혀 있다', () {
+    expect(store.pinnedBoards.map((b) => b.title), ['하나씩 해볼까', '소소한 행복']);
+    expect(store.looseBoards.first.title, '오늘의 메모');
   });
 
   test('할 일 카드에는 시작할 거리가 세 줄 들어 있다', () {

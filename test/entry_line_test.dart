@@ -12,6 +12,11 @@ void main() {
       ..devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
     MemoStore.instance.debugSeed();
+    // 줄 쓰기는 붙박기와 상관없다. 기본으로 붙박아 둔 카드를 떼어,
+    // 첫 화면이 빈 '오늘의 메모'로 서게 한다.
+    for (final b in MemoStore.instance.pinnedBoards) {
+      MemoStore.instance.togglePin(b.id);
+    }
     await tester.pumpWidget(
       const MaterialApp(debugShowCheckedModeBanner: false, home: HomeScreen()),
     );

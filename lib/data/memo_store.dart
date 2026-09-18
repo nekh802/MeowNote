@@ -175,19 +175,24 @@ class MemoStore extends ChangeNotifier {
 
   /// 지금까지 넣어 둔 기본 카드 묶음의 수. 이미 쓰던 기기에도 새로 추가된
   /// 묶음이 한 번은 들어오도록 [load] 에서 이 값을 비교한다.
-  static const seedSets = 2;
+  static const seedSets = 3;
 
   /// 이미 만들어 둔 카드의 글귀를 손본 횟수. 새 값을 올리면 쓰던 기기에서도
   /// [_applyFixups] 가 한 번 돈다.
-  static const fixups = 3;
+  static const fixups = 4;
 
-  /// 묶음마다 어디서 시작하는지. 첫 묶음이 여섯 장, 두 번째가 다섯 장이라
-  /// 한 묶음의 크기로 셈하지 않고 자리를 그대로 적어 둔다.
-  static const _setStarts = [0, 6];
+  /// 처음부터 목록 맨 위에 붙박아 두는 기본 카드의 제목.
+  static const pinnedSeeds = {'하나씩 해볼까', '소소한 행복'};
 
-  /// 첫 실행에 놓이는 열한 장. 컨셉아트 두 장의 구성 그대로다 — 한 장은
-  /// 나중에 걷어냈고, 이미 받아 간 기기에서만 [_applyFixups] 가 흔적으로
-  /// 남긴다. 이 구성은 test/seed_cards_test.dart 가 통째로 지킨다.
+  /// 묶음마다 어디서 시작하는지. 첫 묶음이 여섯 장, 두 번째가 다섯 장,
+  /// 세 번째가 한 장이라 한 묶음의 크기로 셈하지 않고 자리를 그대로 적어
+  /// 둔다.
+  static const _setStarts = [0, 6, 11];
+
+  /// 첫 실행에 놓이는 열두 장. 컨셉아트 두 장의 구성에 나비 한 장을
+  /// 더했다 — 한 장은 나중에 걷어냈고, 이미 받아 간 기기에서만
+  /// [_applyFixups] 가 흔적으로 남긴다. 이 구성은 test/seed_cards_test.dart
+  /// 가 통째로 지킨다.
   void _seed({int from = 0}) {
     final seeds =
         <
@@ -316,6 +321,17 @@ class MemoStore extends ChangeNotifier {
             kind: BoardKind.note,
             lines: <String>[],
           ),
+          // 세 번째 묶음. 윙크하며 앞발을 올린 나비.
+          (
+            title: '소소한 행복',
+            subtitle: '오늘 나를 웃게 한 것',
+            color: 'blossom',
+            cat: 'nabi',
+            badge: 'paw',
+            pose: CatPose.peekBottom,
+            kind: BoardKind.hearts,
+            lines: <String>[],
+          ),
         ];
 
     // 한 묶음을 같은 때에 놓는다. 마이크로초 차이로 '편집일 순'이
@@ -335,6 +351,7 @@ class MemoStore extends ChangeNotifier {
         order: i,
       );
       board.updatedAt = stamp;
+      if (pinnedSeeds.contains(s.title)) board.pinnedAt = stamp;
       _boards.add(board);
       for (var k = 0; k < s.lines.length; k++) {
         _entries.add(
@@ -348,6 +365,7 @@ class MemoStore extends ChangeNotifier {
   void _applyFixups() {
     // 고를 수 없게 된 표시를 쓰던 카드는 남아 있는 것으로 옮긴다.
     const movedBadges = {'flower': 'spark', 'clover': 'sprout'};
+    final stamp = DateTime.now().toUtc();
     for (final board in _boards) {
       // 노을과 '마음 비우기'는 걷어냈다. 지운 흔적만 남기므로 예전
       // 되살릴 수 있다.
@@ -359,6 +377,8 @@ class MemoStore extends ChangeNotifier {
       if (board.title == '잠깐 쉬어가기') board.subtitle = '천천히 해도 괜찮아';
       final moved = movedBadges[board.badgeKey];
       if (moved != null) board.badgeKey = moved;
+      // 할 일 카드와 나비 카드는 처음부터 목록 맨 위에 붙박아 둔다.
+      if (pinnedSeeds.contains(board.title)) board.pinnedAt ??= stamp;
     }
   }
 

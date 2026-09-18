@@ -8,6 +8,11 @@ void main() {
 
   setUp(() {
     store.debugSeed();
+    // 차례만 보려고 기본으로 붙박아 둔 카드는 떼어 둔다. 붙박은 채로
+    // 서는 모습은 test/seed_cards_test.dart 가 지킨다.
+    for (final b in store.pinnedBoards) {
+      store.togglePin(b.id);
+    }
     store.setSort(BoardSort.edited);
   });
 
@@ -15,7 +20,7 @@ void main() {
     // 기본 카드는 모두 같은 때에 놓인다. 마이크로초 차이로 줄이
     // 뒤집히면 처음 켠 사람이 '내일 또 만나'부터 보게 된다.
     expect(store.boards.first.title, '오늘의 메모');
-    expect(store.boards.last.title, '내일 또 만나');
+    expect(store.boards.last.title, '소소한 행복');
   });
 
   test('편집일 순은 마지막으로 손댄 카드를 앞에 세운다', () {

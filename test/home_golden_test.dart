@@ -64,6 +64,12 @@ void main() {
     await precacheArtwork(tester);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+    // 처음 켜면 맨 위에 붙박아 둔 할 일 카드가 선다.
+    expect(find.byType(TextField), findsNWidgets(3));
+    await tester.tap(find.byTooltip('목록'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('오늘의 메모').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('줄 추가').first);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '오늘의 작은 행복');
