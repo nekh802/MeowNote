@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/gestures.dart' show TapGestureRecognizer;
@@ -124,51 +125,60 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             constraints: const BoxConstraints.expand(),
             duration: const Duration(milliseconds: 320),
             decoration: BoxDecoration(gradient: bg.gradient),
-            child: SafeArea(
-              child: PageView(
-                controller: _pages,
-                // 페이지를 넘길 때 자판이 따라오면 다음 장을 덮는다.
-                onPageChanged: (_) =>
-                    FocusManager.instance.primaryFocus?.unfocus(),
-                children: [
-                  _LibraryPage(
-                    bg: bg,
-                    pinned: _store.pinnedBoards,
-                    loose: _store.looseBoards,
-                    selectedId: selected?.id,
-                    onPick: _pickBoard,
-                    onPin: (b) {
-                      HapticFeedback.lightImpact();
-                      setState(() => _store.togglePin(b.id));
-                    },
-                    onPickBackground: _openBackgroundSheet,
-                    onExport: _exportAllBoards,
-                    onSort: _openMoreSheet,
-                    onAddBoard: _addBoard,
-                    matches: _matches,
-                    sort: _store.sort,
+            child: Stack(
+              children: [
+                // 밤하늘에만 별이 뜬다. 다른 배경에서는 아무것도 얹지 않는다.
+                if (bg.starry)
+                  const Positioned.fill(
+                    child: IgnorePointer(child: _StarField()),
                   ),
-                  if (selected == null)
-                    const SizedBox()
-                  else
-                    _Vanishing(
-                      gone: _vanishingBoardId == selected.id,
-                      duration: _vanishDuration,
-                      child: _MemoPage(
+                SafeArea(
+                  child: PageView(
+                    controller: _pages,
+                    // 페이지를 넘길 때 자판이 따라오면 다음 장을 덮는다.
+                    onPageChanged: (_) =>
+                        FocusManager.instance.primaryFocus?.unfocus(),
+                    children: [
+                      _LibraryPage(
                         bg: bg,
-                        board: selected,
-                        entries: _store.entriesOf(selected.id),
-                        focus: _focus,
-                        onBack: _openLibrary,
-                        onAdd: () => _addEntry(selected),
-                        onEnter: _splitEntry,
-                        onExport: () => _exportBoard(selected),
-                        onDelete: () => _deleteBoard(selected),
-                        onOpenSettings: () => _openBoardSheet(selected),
+                        pinned: _store.pinnedBoards,
+                        loose: _store.looseBoards,
+                        selectedId: selected?.id,
+                        onPick: _pickBoard,
+                        onPin: (b) {
+                          HapticFeedback.lightImpact();
+                          setState(() => _store.togglePin(b.id));
+                        },
+                        onPickBackground: _openBackgroundSheet,
+                        onExport: _exportAllBoards,
+                        onSort: _openMoreSheet,
+                        onAddBoard: _addBoard,
+                        matches: _matches,
+                        sort: _store.sort,
                       ),
-                    ),
-                ],
-              ),
+                      if (selected == null)
+                        const SizedBox()
+                      else
+                        _Vanishing(
+                          gone: _vanishingBoardId == selected.id,
+                          duration: _vanishDuration,
+                          child: _MemoPage(
+                            bg: bg,
+                            board: selected,
+                            entries: _store.entriesOf(selected.id),
+                            focus: _focus,
+                            onBack: _openLibrary,
+                            onAdd: () => _addEntry(selected),
+                            onEnter: _splitEntry,
+                            onExport: () => _exportBoard(selected),
+                            onDelete: () => _deleteBoard(selected),
+                            onOpenSettings: () => _openBoardSheet(selected),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -312,8 +322,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.delete_outline_rounded),
-                title: const Text('메모 지우기'),
-                subtitle: const Text('여러 장을 골라 한 번에'),
+                // 앱 이름과 같은 둥근 서체로 적는다.
+                title: Text('메모 지우기', style: _round(16, _pickInk)),
+                subtitle: Text(
+                  '여러 장을 골라 한 번에',
+                  style: _round(13, _pickInk.withValues(alpha: .7)),
+                ),
                 onTap: () {
                   Navigator.of(context).pop();
                   _openDeleteSheet();
@@ -405,11 +419,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 Align(
                   alignment: Alignment.centerRight,
                   child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: picked.isEmpty
-                          ? null
-                          : Theme.of(context).colorScheme.error,
-                    ),
+                    // 고른 것이 있으면 붉은 바탕이 되니, 그때는 검은
+                    // 테두리를 벗고 흰 글씨를 쓴다.
+                    style: picked.isEmpty
+                        ? null
+                        : FilledButton.styleFrom(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.error,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppTone.radius,
+                              ),
+                            ),
+                          ),
                     onPressed: picked.isEmpty
                         ? null
                         : () => Navigator.of(sheet).pop(picked.length),
@@ -610,6 +634,7 @@ class _LibraryPageState extends State<_LibraryPage>
                             hint: i == 0 ? '메모를 길게 누르면 고정할 수 있어요' : null,
                           ),
                           _BoardChips(
+                            bg: bg,
                             boards: group.$2,
                             selectedId: widget.selectedId,
                             onPick: widget.onPick,
@@ -672,11 +697,9 @@ class _SearchBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: bg.isDark
-            ? Colors.white.withValues(alpha: .10)
-            : Colors.white.withValues(alpha: .62),
+        color: bg.isDark ? bg.panel : Colors.white.withValues(alpha: .62),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: .8)),
+        border: Border.all(color: bg.panelEdge),
       ),
       child: Row(
         children: [
@@ -749,11 +772,9 @@ class _PickerBox extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
         decoration: BoxDecoration(
-          color: bg.isDark
-              ? Colors.white.withValues(alpha: .10)
-              : Colors.white.withValues(alpha: .72),
+          color: bg.isDark ? bg.panel : Colors.white.withValues(alpha: .72),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withValues(alpha: .8)),
+          border: Border.all(color: bg.panelEdge),
         ),
         child: Row(
           children: [
@@ -762,7 +783,7 @@ class _PickerBox extends StatelessWidget {
                 // 앱 이름을 여기에 못 박는다. 어느 메모를 펼쳐 두었는지는
                 // 아래 블록의 체크 표시가 알려 준다.
                 '말랑 고양이 메모',
-                style: _round(19, p?.ink ?? bg.onBackground),
+                style: _round(19, p?.inkOn(bg.isDark) ?? bg.onBackground),
               ),
             ),
             AnimatedRotation(
@@ -840,6 +861,54 @@ class _GroupLabel extends StatelessWidget {
   );
 }
 
+/// 밤하늘 배경에 뿌리는 별. 자리와 밝기는 붙박은 씨앗에서 뽑으므로, 화면을
+/// 다시 그려도 별이 옮겨 다니지 않는다.
+class _StarField extends StatelessWidget {
+  const _StarField();
+
+  /// 화면 넓이 10만 제곱점마다 별 몇 개를 둘지. 시안보다 3할 성글게 잡았다.
+  static const _perArea = 10.5;
+
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(painter: _StarPainter(), isComplex: true);
+}
+
+class _StarPainter extends CustomPainter {
+  /// 같은 씨앗이면 언제나 같은 하늘이 된다.
+  static const _seed = 20260919;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rnd = math.Random(_seed);
+    final count = (size.width * size.height / 100000 * _StarField._perArea)
+        .round();
+    final paint = Paint()..color = Colors.white;
+    for (var i = 0; i < count; i++) {
+      final at = Offset(
+        rnd.nextDouble() * size.width,
+        rnd.nextDouble() * size.height,
+      );
+      // 밝기도 시안보다 3할 낮춰, 글씨를 읽는 데 걸리지 않게 한다.
+      final glow = rnd.nextDouble();
+      final r = .5 + glow * 1.1;
+      paint.color = Colors.white.withValues(alpha: .10 + glow * .49);
+      canvas.drawCircle(at, r, paint);
+      // 가장 밝은 몇 개만 사방으로 빛을 흘린다.
+      if (glow > .93) {
+        canvas.drawCircle(
+          at,
+          r * 3.2,
+          Paint()..color = Colors.white.withValues(alpha: .07),
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StarPainter oldDelegate) => false;
+}
+
 /// 작은 블록 한 장의 셈.
 const _chipPadH = 16.0;
 const _chipPadV = 10.0;
@@ -858,6 +927,7 @@ const _chipGap = 8.0;
 /// [onAdd] 를 주면 새 메모 [+] 블록을 맨 앞에 세운다.
 class _BoardChips extends StatelessWidget {
   const _BoardChips({
+    required this.bg,
     required this.boards,
     required this.selectedId,
     required this.onPick,
@@ -865,6 +935,7 @@ class _BoardChips extends StatelessWidget {
     this.onAdd,
   });
 
+  final BackgroundTheme bg;
   final List<Board> boards;
   final String? selectedId;
   final void Function(Board) onPick;
@@ -879,9 +950,10 @@ class _BoardChips extends StatelessWidget {
       children: [
         // 새 메모는 언제나 맨 앞이다. 차례를 바꾸거나 붙박아 두어도
         // 찾는 자리가 달라지지 않는다.
-        if (onAdd != null) _AddBoardChip(onTap: onAdd!),
+        if (onAdd != null) _AddBoardChip(bg: bg, onTap: onAdd!),
         for (final board in boards)
           _BoardChip(
+            bg: bg,
             board: board,
             selected: board.id == selectedId,
             onTap: () => onPick(board),
@@ -895,12 +967,14 @@ class _BoardChips extends StatelessWidget {
 /// 메모 한 장을 가리키는 블록.
 class _BoardChip extends StatelessWidget {
   const _BoardChip({
+    required this.bg,
     required this.board,
     required this.selected,
     required this.onTap,
     required this.onLongPress,
   });
 
+  final BackgroundTheme bg;
   final Board board;
   final bool selected;
   final VoidCallback onTap;
@@ -909,6 +983,10 @@ class _BoardChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = CardPalette.byKey(board.colorKey);
+    // 고른 블록은 어느 배경에서나 카드 바탕색을 그대로 입는다. 고르지 않은
+    // 블록은 밤하늘에서 카드 색의 밝은 짝으로 글씨를 쓰고, 같은 색의 옅은
+    // 빛테를 둘러 어느 메모인지 색만으로 알아본다.
+    final ink = selected ? p.ink : p.inkOn(bg.isDark);
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -919,28 +997,32 @@ class _BoardChip extends StatelessWidget {
           vertical: _chipPadV,
         ),
         decoration: BoxDecoration(
-          // 고른 것은 그 메모의 카드 바탕색, 나머지는 반투명한 흰색이라
-          // 뒤 배경이 은은하게 비친다. 글자색은 어느 쪽이든 그 메모의
-          // 카드 글자색이다.
-          color: selected ? p.bg : Colors.white.withValues(alpha: .45),
+          color: selected ? p.bg : bg.panel,
           borderRadius: BorderRadius.circular(_chipRadius),
           border: Border.all(
-            color: selected ? p.bg : _chipEdgeColor,
+            color: selected
+                ? p.bg
+                : bg.isDark
+                ? ink.withValues(alpha: .28)
+                : _chipEdgeColor,
             width: _chipEdge,
           ),
+          boxShadow: bg.isDark && !selected
+              ? [BoxShadow(color: ink.withValues(alpha: .10), blurRadius: 10)]
+              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (selected) ...[
-              Icon(Icons.check_rounded, size: 16, color: p.ink),
+              Icon(Icons.check_rounded, size: 16, color: ink),
               const SizedBox(width: 5),
             ],
             if (board.isPinned) ...[
-              Icon(Icons.push_pin, size: 12, color: p.ink),
+              Icon(Icons.push_pin, size: 12, color: ink),
               const SizedBox(width: 5),
             ],
-            Text(board.title, style: _round(14, p.ink)),
+            Text(board.title, style: _round(14, ink)),
           ],
         ),
       ),
@@ -950,13 +1032,14 @@ class _BoardChip extends StatelessWidget {
 
 /// 새 메모를 놓는 [+] 블록.
 class _AddBoardChip extends StatelessWidget {
-  const _AddBoardChip({required this.onTap});
+  const _AddBoardChip({required this.bg, required this.onTap});
 
+  final BackgroundTheme bg;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final edge = _pickedEdge(context);
+    final edge = Theme.of(context).colorScheme.primary;
     return Tooltip(
       message: '새 메모',
       child: GestureDetector(
@@ -968,7 +1051,7 @@ class _AddBoardChip extends StatelessWidget {
             vertical: _chipPadV,
           ),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: .45),
+            color: bg.panel,
             borderRadius: BorderRadius.circular(_chipRadius),
             // 메모가 아니라 단추라는 것이 보이도록 이것만 색 테두리를 둔다.
             border: Border.all(
@@ -1054,6 +1137,7 @@ class _MemoPage extends StatelessWidget {
                   children: [
                     _BoardCard(
                       key: ValueKey(board.id),
+                      bg: bg,
                       board: board,
                       entries: entries,
                       focus: focus,
@@ -1196,10 +1280,9 @@ class _TopAction extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
-            color: bg.isDark
-                ? Colors.white.withValues(alpha: .10)
-                : Colors.white.withValues(alpha: .7),
+            color: bg.isDark ? bg.panel : Colors.white.withValues(alpha: .7),
             shape: BoxShape.circle,
+            border: bg.isDark ? Border.all(color: bg.panelEdge) : null,
           ),
           child: Icon(icon, size: 18, color: bg.onBackground),
         ),
@@ -1213,6 +1296,7 @@ class _TopAction extends StatelessWidget {
 class _BoardCard extends StatefulWidget {
   const _BoardCard({
     super.key,
+    required this.bg,
     required this.board,
     required this.entries,
     required this.focus,
@@ -1223,6 +1307,7 @@ class _BoardCard extends StatefulWidget {
     required this.onOpenSettings,
   });
 
+  final BackgroundTheme bg;
   final Board board;
   final List<Entry> entries;
   final _Caret? focus;
@@ -1284,10 +1369,14 @@ class _BoardCardState extends State<_BoardCard> {
               child: Container(
                 constraints: const BoxConstraints(minHeight: 312),
                 decoration: BoxDecoration(
-                  color: p.bg.withValues(alpha: .68),
+                  // 밝은 배경 위에서는 비쳐 보이는 편이 곱지만, 밤하늘 위에서
+                  // 같은 투명도를 쓰면 남색이 배어 카드 색이 잿빛이 된다.
+                  color: p.bg.withValues(alpha: widget.bg.isDark ? .94 : .68),
                   borderRadius: BorderRadius.circular(26),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: .7),
+                    color: Colors.white.withValues(
+                      alpha: widget.bg.isDark ? .32 : .7,
+                    ),
                     width: 2,
                   ),
                   boxShadow: [
@@ -2246,7 +2335,7 @@ class _Sheet extends StatelessWidget {
         // Material 로 깔아야 안에 놓인 ListTile 이 제 바탕 위에 잉크를
         // 번지게 할 수 있다. 색칠한 상자로 감싸면 그 효과가 가려진다.
         child: Material(
-          color: Theme.of(context).colorScheme.surface,
+          color: AppTone.sheet,
           borderRadius: BorderRadius.circular(26),
           clipBehavior: Clip.antiAlias,
           child: Padding(
@@ -2307,15 +2396,23 @@ class _BackgroundSwatch extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: theme.gradient,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: selected
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.black.withValues(alpha: .12),
-                width: selected ? 2.6 : 1,
-              ),
+              border: Border.all(color: _idleEdge),
             ),
+            // 카드 색 견본과 같이, 고른 배경은 제 색 위에 음영 한 겹을
+            // 덮어 쓴다.
             child: selected
-                ? Icon(Icons.check_rounded, size: 22, color: theme.onBackground)
+                ? Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _pickedFill,
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                    child: Icon(
+                      Icons.check_rounded,
+                      size: 22,
+                      color: theme.onBackground,
+                    ),
+                  )
                 : null,
           ),
           const SizedBox(height: 6),
@@ -2361,15 +2458,15 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              const _SheetLabel('제목'),
+              _SheetField(
                 controller: _title,
-                decoration: const InputDecoration(labelText: '제목'),
                 onChanged: (v) => _store.updateBoard(board.id, title: v),
               ),
-              const SizedBox(height: 10),
-              TextField(
+              const SizedBox(height: 14),
+              const _SheetLabel('한 줄 설명 (선택)'),
+              _SheetField(
                 controller: _subtitle,
-                decoration: const InputDecoration(labelText: '한 줄 설명 (선택)'),
                 onChanged: (v) => _store.updateBoard(board.id, subtitle: v),
               ),
               const SizedBox(height: 20),
@@ -2404,20 +2501,23 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                         () => _store.updateBoard(board.id, colorKey: p.key),
                       ),
                       child: Container(
-                        width: 42,
-                        height: 42,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                           color: p.bg,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: board.colorKey == p.key
-                                ? p.ink
-                                : Colors.black.withValues(alpha: .1),
-                            width: board.colorKey == p.key ? 2.4 : 1,
-                          ),
+                          border: Border.all(color: _idleEdge),
                         ),
+                        // 고른 색은 제 색을 지키되 음영 한 겹을 덮어 쓴다.
                         child: board.colorKey == p.key
-                            ? Icon(Icons.check_rounded, size: 18, color: p.ink)
+                            ? Container(
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: _pickedFill,
+                                  borderRadius: BorderRadius.circular(13),
+                                ),
+                                child: const _PickedCheck(size: 18),
+                              )
                             : null,
                       ),
                     ),
@@ -2435,15 +2535,15 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                         () => _store.updateBoard(board.id, badgeKey: b.key),
                       ),
                       child: Container(
-                        padding: const EdgeInsets.all(9),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
+                          // 고름은 색 테두리가 아니라 음영으로 보인다.
+                          color: board.badgeKey == b.key ? _pickedFill : null,
                           border: Border.all(
-                            // 고양이를 고를 때와 같은 테두리 색.
                             color: board.badgeKey == b.key
-                                ? _pickedEdge(context)
-                                : Colors.black.withValues(alpha: .08),
-                            width: board.badgeKey == b.key ? 2.2 : 1,
+                                ? Colors.transparent
+                                : _idleEdge,
                           ),
                         ),
                         child: b.icon == null
@@ -2500,6 +2600,7 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
               const _SheetLabel('고양이 자리'),
               Wrap(
                 spacing: 8,
+                runSpacing: 8,
                 children: [
                   for (final entry in const {
                     CatPose.peekTop: '위에 걸터앉기',
@@ -2508,10 +2609,10 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                     CatPose.watermark: '옅게 깔기',
                     CatPose.none: '없음',
                   }.entries)
-                    ChoiceChip(
-                      label: Text(entry.value),
+                    _PickBox(
+                      label: entry.value,
                       selected: board.pose == entry.key,
-                      onSelected: (_) => setState(
+                      onTap: () => setState(
                         () => _store.updateBoard(board.id, pose: entry.key),
                       ),
                     ),
@@ -2533,9 +2634,21 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
   }
 }
 
-/// 고른 것을 감싸는 테두리 색. 고양이·배지·카드 종류가 같은 색을 쓴다.
-Color _pickedEdge(BuildContext context) =>
-    Theme.of(context).colorScheme.primary;
+// 창의 결은 모두 [AppTone] 에 모여 있다. 여기서는 짧은 이름으로 빌려 쓴다.
+const _pickedFill = AppTone.picked;
+const _idleEdge = AppTone.idleEdge;
+const _pickInk = AppTone.ink;
+
+/// 고른 칸 오른쪽 위에 얹는 작은 고름표.
+class _PickedCheck extends StatelessWidget {
+  const _PickedCheck({this.size = 13});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) =>
+      Icon(Icons.check_rounded, size: size, color: _pickInk);
+}
 
 /// 그림 하나와 이름으로 고르는 칸.
 class _CatPick extends StatelessWidget {
@@ -2555,20 +2668,18 @@ class _CatPick extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
     child: Container(
-      width: 68,
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      width: 70,
+      padding: const EdgeInsets.symmetric(vertical: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: selected ? _pickedEdge(context) : Colors.transparent,
-          width: 2,
-        ),
+        // 고름은 옅은 음영 하나로만 보인다.
+        color: selected ? _pickedFill : null,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(height: 40, child: Center(child: child)),
-          Text(label, style: const TextStyle(fontSize: 11)),
+          Text(label, style: const TextStyle(fontSize: 11, color: _pickInk)),
         ],
       ),
     ),
@@ -2589,27 +2700,58 @@ class _PickBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final edge = _pickedEdge(context);
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        // 고른 것은 테두리를 지우고 옅은 음영만 깔아 보인다.
         decoration: BoxDecoration(
-          color: selected ? edge.withValues(alpha: .10) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? edge : Colors.black.withValues(alpha: .12),
-            width: selected ? 2 : 1,
-          ),
+          color: selected ? _pickedFill : null,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: selected ? Colors.transparent : _idleEdge),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            color: selected ? edge : const Color(0xFF6B4F52),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              const _PickedCheck(size: 15),
+              const SizedBox(width: 6),
+            ],
+            Text(label, style: const TextStyle(fontSize: 14, color: _pickInk)),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+/// 꾸미기 창의 글칸. 테두리 없이 음영 바탕만 두어, 고른 칸과 같은 결로
+/// 보인다.
+class _SheetField extends StatelessWidget {
+  const _SheetField({required this.controller, required this.onChanged});
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const shape = OutlineInputBorder(
+      borderRadius: BorderRadius.all(Radius.circular(AppTone.radius)),
+      borderSide: BorderSide.none,
+    );
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      style: const TextStyle(fontSize: 15, color: _pickInk),
+      decoration: const InputDecoration(
+        filled: true,
+        fillColor: _pickedFill,
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        border: shape,
+        enabledBorder: shape,
+        focusedBorder: shape,
       ),
     );
   }

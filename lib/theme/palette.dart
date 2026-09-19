@@ -19,6 +19,22 @@ class CardPalette {
   final Color line; // 괘선·체크박스 테두리
   final Color tint; // 강조 (+ 버튼, 체크 표시)
 
+  /// 밤하늘 위에 놓일 때 쓰는 글자색. [ink] 는 밝은 카드 바탕을 전제로 한
+  /// 짙은 색이라, 남색 위에 그대로 얹으면 글씨가 묻힌다. 카드 색을 그대로
+  /// 알아볼 수 있도록 같은 색의 밝은 짝을 따로 둔다.
+  Color get nightInk => switch (key) {
+    'apricot' => const Color(0xFFF2C98A),
+    'sky' => const Color(0xFF94C0E8),
+    'lilac' => const Color(0xFFBCAEEA),
+    'mint' => const Color(0xFF9BD8AE),
+    'butter' => const Color(0xFFFFE59B),
+    'white' => const Color(0xFFE8E1E3),
+    _ => const Color(0xFFF3AFC4),
+  };
+
+  /// 배경에 따라 고르는 글자색.
+  Color inkOn(bool isDark) => isDark ? nightInk : ink;
+
   static const blossom = CardPalette(
     key: 'blossom',
     label: '벚꽃',
@@ -138,6 +154,7 @@ class BackgroundTheme {
     required this.top,
     required this.bottom,
     this.isDark = false,
+    this.starry = false,
   });
 
   final String key;
@@ -146,6 +163,9 @@ class BackgroundTheme {
   final Color bottom;
   final bool isDark;
 
+  /// 바탕 위에 별을 뿌릴지.
+  final bool starry;
+
   Color get onBackground =>
       isDark ? const Color(0xFFF3EEF6) : const Color(0xFF6B4F52);
   Color get onBackgroundMuted =>
@@ -153,8 +173,19 @@ class BackgroundTheme {
 
   /// 제목을 감싸는 구름 색.
   Color get cloud => isDark
-      ? Colors.white.withValues(alpha: .10)
+      ? Colors.white.withValues(alpha: .07)
       : const Color(0xFFF6EADF).withValues(alpha: .95);
+
+  /// 블록·검색칸이 깔고 앉는 바탕. 어두울 때는 하늘빛이 살짝 도는 남색이라
+  /// 배경에서 한 겹 떠 보인다.
+  Color get panel => isDark
+      ? const Color(0xFF7FB2E8).withValues(alpha: .10)
+      : Colors.white.withValues(alpha: .45);
+
+  /// 그 바탕을 두르는 테두리.
+  Color get panelEdge => isDark
+      ? Colors.white.withValues(alpha: .16)
+      : Colors.white.withValues(alpha: .8);
 
   LinearGradient get gradient => LinearGradient(
     begin: Alignment.topCenter,
@@ -205,12 +236,15 @@ class BackgroundTheme {
     top: Color(0xFFF3EAE2),
     bottom: Color(0xFFE3D5C8),
   );
+
+  /// 별이 뜨는 남색 하늘. 이 배경만 바탕 위에 별을 뿌린다.
   static const night = BackgroundTheme(
     key: 'night',
     label: '밤하늘',
-    top: Color(0xFF2E2B3A),
-    bottom: Color(0xFF1D1B26),
+    top: Color(0xFF0A1730),
+    bottom: Color(0xFF081226),
     isDark: true,
+    starry: true,
   );
 
   /// 위는 온전한 흰색, 아래로 갈수록 살짝 따뜻해지는 오프화이트.
@@ -248,4 +282,32 @@ class BackgroundTheme {
 
   static BackgroundTheme byKey(String key) =>
       all.firstWhere((b) => b.key == key, orElse: () => coolWhite);
+}
+
+/// 창과 단추가 함께 쓰는 잿빛 결. 카드 꾸미기 창에서 다듬은 모습을 그대로
+/// 앱의 기본으로 삼았다. 고른 것은 색 테두리가 아니라 옅은 음영으로만
+/// 보이니, 카드 색 견본 옆에서도 창이 조용하다.
+class AppTone {
+  const AppTone._();
+
+  /// 창 바탕. 노란 기를 뺀 중립 회백색이라 위에 놓인 색이 제 색으로 보인다.
+  static const sheet = Color(0xFFF8F8F7);
+
+  /// 고른 칸과 글칸에 까는 옅은 음영.
+  static const picked = Color(0x12000000);
+
+  /// 고르지 않은 칸을 두르는 옅은 잿빛 테두리.
+  static const idleEdge = Color(0x1A000000);
+
+  /// 창 안 글씨에 쓰는 먹빛.
+  static const ink = Color(0xFF6B4F52);
+
+  /// 단추 바탕에 쓰는 쿨화이트.
+  static const buttonFill = Color(0xFFF7F7F6);
+
+  /// 단추를 두르는 검은 테두리. 창 안에서 여기만 검어서 눈이 먼저 간다.
+  static const buttonEdge = Color(0xFF1C1B1B);
+
+  /// 창 안 칸과 단추가 함께 쓰는 모서리.
+  static const radius = 14.0;
 }
