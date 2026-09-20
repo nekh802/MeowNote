@@ -21,6 +21,10 @@ dependencies:
   shared_preferences: ^2.5.5
   share_plus: ^13.3.0     # 백업 번들·카드 내보내기 (BackupTarget 첫 구현체)
   url_launcher: ^6.3.2    # 메모에 적어 둔 주소 열기
+  file_picker: ^13.1.0
+  open_filex: ^4.7.0
+  package_info_plus: ^10.2.1
+  video_player: ^2.14.0
 
 dev_dependencies:
   flutter_test:

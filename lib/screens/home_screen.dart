@@ -1,12 +1,15 @@
+import '../widgets/bottom_bar_surface.dart';
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/gestures.dart' show TapGestureRecognizer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/app_update.dart';
+import '../data/desktop_window.dart';
 import '../data/memo_store.dart';
 import '../data/share_text.dart';
 import '../data/when.dart';
@@ -16,6 +19,7 @@ import '../theme/palette.dart';
 import '../widgets/cat_face.dart';
 import '../widgets/original_artwork.dart';
 import '../widgets/star_field.dart';
+import '../widgets/memo_attachments.dart';
 
 /// 앱스토어에서 이 앱을 찾을 이름표. 기기에 적어 둔 메모가 이 이름에
 /// 매여 있어 이름을 바꾼 뒤에도 그대로 두었다.
@@ -28,6 +32,11 @@ TextStyle _hand(double size, Color color) => TextStyle(
   color: color,
   height: 1.35,
 );
+
+/// 목록 페이지 글씨 크기. 기본 제공 폰트는 같은 크기에서도 손글씨체보다 크게
+/// 앉아, 그 폰트를 고른 때만 1포인트 줄인다.
+double _listSize(double size) =>
+    MemoStore.instance.fontKey == 'system' ? size - 1 : size;
 
 /// 제목·카드 이름에 쓰는 둥근 서체.
 TextStyle _round(double size, Color color) => TextStyle(
@@ -108,6 +117,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         state == AppLifecycleState.inactive) {
       unawaited(_store.flush().then((_) => WidgetFeed.publish(_store)));
     }
+    // 오래 켜 둔 앱은 실행 때만 살피면 새 판을 놓친다. 앞으로 돌아올 때도
+    // 살피되, 하루 안에 다시 묻지는 않는다.
+    if (state == AppLifecycleState.resumed) {
+      final last = _lastStoreCheck;
+      if (last == null || DateTime.now().difference(last).inHours >= 24) {
+        unawaited(_offerStoreUpdate());
+      }
+    }
   }
 
   @override
@@ -129,55 +146,76 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               children: [
                 // 밤하늘에만 별이 뜬다. 다른 배경에서는 아무것도 얹지 않는다.
                 if (bg.starry) const Positioned.fill(child: StarField()),
+                // 맥 쪽지 창은 제목줄이 없다. 맨 위 손잡이를 잡고 옮긴다.
                 NightArtwork(
                   on: bg.isDark,
-                  child: SafeArea(
-                    child: PageView(
-                      controller: _pages,
-                      // 페이지를 넘길 때 자판이 따라오면 다음 장을 덮는다.
-                      onPageChanged: (_) =>
-                          FocusManager.instance.primaryFocus?.unfocus(),
-                      children: [
-                        _LibraryPage(
-                          bg: bg,
-                          pinned: _store.pinnedBoards,
-                          loose: _store.looseBoards,
-                          selectedId: selected?.id,
-                          onPick: _pickBoard,
-                          onPin: (b) {
-                            HapticFeedback.lightImpact();
-                            setState(() => _store.togglePin(b.id));
-                          },
-                          onPickBackground: _openBackgroundSheet,
-                          onExport: _exportAllBoards,
-                          onSort: _openMoreSheet,
-                          onAddBoard: _addBoard,
-                          matches: _matches,
-                          sort: _store.sort,
-                        ),
-                        if (selected == null)
-                          const SizedBox()
-                        else
-                          _Vanishing(
-                            gone: _vanishingBoardId == selected.id,
-                            duration: _vanishDuration,
-                            child: _MemoPage(
-                              bg: bg,
-                              board: selected,
-                              entries: _store.entriesOf(selected.id),
-                              focus: _focus,
-                              onBack: _openLibrary,
-                              onAdd: () => _addEntry(selected),
-                              onEnter: _splitEntry,
-                              onExport: () => _exportBoard(selected),
-                              onDelete: () => _deleteBoard(selected),
-                              onOpenSettings: () => _openBoardSheet(selected),
-                            ),
+                  child: Padding(
+                    // 맥에서는 맨 위 손잡이만큼 내려 앉힌다.
+                    padding: EdgeInsets.only(
+                      top: DesktopWindow.canDrag ? _grabHeight : 0,
+                    ),
+                    child: SafeArea(
+                      child: PageView(
+                        controller: _pages,
+                        // 페이지를 넘길 때 자판이 따라오면 다음 장을 덮는다.
+                        onPageChanged: (_) =>
+                            FocusManager.instance.primaryFocus?.unfocus(),
+                        children: [
+                          _LibraryPage(
+                            bg: bg,
+                            pinned: _store.pinnedBoards,
+                            loose: _store.looseBoards,
+                            selectedId: selected?.id,
+                            onPick: _pickBoard,
+                            onPin: (b) {
+                              HapticFeedback.lightImpact();
+                              setState(() => _store.togglePin(b.id));
+                            },
+                            onPickBackground: _openBackgroundSheet,
+                            onExport: _exportAllBoards,
+                            onSort: _openMoreSheet,
+                            onAddBoard: _addBoard,
+                            matches: _matches,
+                            sort: _store.sort,
                           ),
-                      ],
+                          if (selected == null)
+                            const SizedBox()
+                          else
+                            _Vanishing(
+                              gone: _vanishingBoardId == selected.id,
+                              duration: _vanishDuration,
+                              child: _MemoPage(
+                                bg: bg,
+                                board: selected,
+                                entries: _store.entriesOf(selected.id),
+                                focus: _focus,
+                                onBack: _openLibrary,
+                                onAdd: () => _addEntry(selected),
+                                onEnter: _splitEntry,
+                                onExport: () => _exportBoard(selected),
+                                onDelete: () => _deleteBoard(selected),
+                                onOpenSettings: () => _openBoardSheet(selected),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
+                if (DesktopWindow.canDrag)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: _grabHeight,
+                    child: Listener(
+                      onPointerDown: (_) => DesktopWindow.startDrag(),
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.grab,
+                        child: const _GrabHandle(),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -247,7 +285,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 카드 한 장을 글로 옮겨 공유 시트에 넘긴다.
   Future<void> _exportBoard(Board board) async {
     try {
-      await shareBoard(board, _store.entriesOf(board.id));
+      await shareBoard(
+        board,
+        _store.entriesOf(board.id),
+        attachments: _store.attachmentsOf(board.id),
+        fileOf: _store.attachmentFile,
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -260,18 +303,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   ///
   /// 같은 판을 두고 켤 때마다 묻지 않도록, 한 번 알린 판은 적어 둔다.
   /// 인터넷이 없거나 아직 스토어에 없는 앱이면 아무 일도 일어나지 않는다.
+  DateTime? _lastStoreCheck;
+
+  /// '나중에'를 누른 사람에게 같은 판을 다시 알리기까지의 날수.
+  static const _remindAfterDays = 3;
+
   Future<void> _offerStoreUpdate() async {
+    _lastStoreCheck = DateTime.now();
     final release = await AppUpdate.lookUp(appBundleId);
     if (release == null || !mounted) return;
-    if (!isNewerVersion(release.version, MemoStore.appVersion)) return;
-    if (_store.toldStoreVersion == release.version) return;
+    // 실제로 깔린 판과 견준다. 코드에 적어 둔 번호는 올리는 것을 깜빡하면
+    // 최신 앱에서도 창이 계속 뜬다.
+    final mine = (await PackageInfo.fromPlatform()).version;
+    if (!mounted || !isNewerVersion(release.version, mine)) return;
+    final told = _store.toldStoreAt;
+    if (_store.toldStoreVersion == release.version &&
+        (told == null ||
+            DateTime.now().difference(told).inDays < _remindAfterDays)) {
+      return;
+    }
     _store.markStoreVersionTold(release.version);
 
     final go = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('새 버전이 나왔어요', style: _round(19, const Color(0xFF6B4F52))),
-        content: const Text('앱스토어에서 말랑 고양이 메모를 최신으로 올려 주세요.'),
+        title: Text('새 버전이 나왔어요.', style: _round(19, const Color(0xFF6B4F52))),
+        content: const Text('앱스토어에서 말랑 고양이 메모를 최신 버전으로 업데이트 해주세요.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -284,8 +341,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       ),
     );
-    if (go ?? false) {
-      await launchUrl(release.page, mode: LaunchMode.externalApplication);
+    if (go != true) return;
+    // 앱스토어 앱을 곧바로 열고, 안 열리면 브라우저로 간다.
+    final opened = await launchUrl(
+      release.page,
+      mode: LaunchMode.externalApplication,
+    ).catchError((_) => false);
+    if (!opened) {
+      await launchUrl(
+        release.fallbackPage,
+        mode: LaunchMode.externalApplication,
+      );
     }
   }
 
@@ -478,7 +544,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 받는 곳으로 '메모'를 고르는 마지막 한 걸음은 사람이 한다.
   Future<void> _exportAllBoards() async {
     try {
-      await shareAllBoards(_store.boards, _store.entriesOf);
+      await shareAllBoards(
+        _store.boards,
+        _store.entriesOf,
+        attachmentsOf: _store.attachmentsOf,
+        fileOf: _store.attachmentFile,
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -752,7 +823,7 @@ class _LibraryPageState extends State<_LibraryPage>
                             child: Text(
                               '찾는 메모가 없어요',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: _listSize(12),
                                 color: bg.onBackgroundMuted,
                               ),
                             ),
@@ -797,13 +868,8 @@ class _SearchBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = bg.onBackground;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: bg.isDark ? bg.panel : Colors.white.withValues(alpha: .62),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: bg.panelEdge),
-      ),
+    return BottomBarSurface(
+      bg: bg,
       child: Row(
         children: [
           Icon(
@@ -817,14 +883,14 @@ class _SearchBox extends StatelessWidget {
               key: const Key('memo-search'),
               controller: controller,
               onChanged: onChanged,
-              style: TextStyle(fontSize: 14, color: ink),
+              style: TextStyle(fontSize: _listSize(14), color: ink),
               decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 13),
                 hintText: '메모 찾기',
                 hintStyle: TextStyle(
-                  fontSize: 14,
+                  fontSize: _listSize(14),
                   color: ink.withValues(alpha: .4),
                 ),
               ),
@@ -887,7 +953,7 @@ class _PickerBox extends StatelessWidget {
                 // 아래 블록의 체크 표시가 알려 준다.
                 '말랑 고양이 메모',
                 style: _round(
-                  MemoStore.instance.fontKey == 'gamja' ? 19 : 18,
+                  _listSize(MemoStore.instance.fontKey == 'gamja' ? 19 : 18),
                   p?.inkOn(bg.isDark) ?? bg.onBackground,
                 ),
               ),
@@ -947,7 +1013,13 @@ class _GroupLabel extends StatelessWidget {
     padding: const EdgeInsets.only(left: 4, bottom: 6),
     child: Row(
       children: [
-        Text(text, style: TextStyle(fontSize: 11, color: bg.onBackgroundMuted)),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: _listSize(11),
+            color: bg.onBackgroundMuted,
+          ),
+        ),
         if (hint != null) ...[
           const SizedBox(width: 6),
           Tooltip(
@@ -963,6 +1035,27 @@ class _GroupLabel extends StatelessWidget {
           ),
         ],
       ],
+    ),
+  );
+}
+
+/// 맥 쪽지 창 맨 위의 손잡이 높이.
+const _grabHeight = 18.0;
+
+/// 창을 옮기는 손잡이. 눈에 띄지 않게 두되, 갈 곳이 있다는 것만 보이도록
+/// 가운데에 짧은 줄 하나를 둔다.
+class _GrabHandle extends StatelessWidget {
+  const _GrabHandle();
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Container(
+      width: 44,
+      height: 4,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: .13),
+        borderRadius: BorderRadius.circular(2),
+      ),
     ),
   );
 }
@@ -1083,7 +1176,7 @@ class _BoardChip extends StatelessWidget {
             Text(
               board.title,
               style: _round(
-                MemoStore.instance.fontKey == 'gamja' ? 14 : 13,
+                _listSize(MemoStore.instance.fontKey == 'gamja' ? 14 : 13),
                 ink,
               ),
             ),
@@ -1217,6 +1310,15 @@ class _MemoPage extends StatelessWidget {
             ),
           ),
         ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(pad, 4, pad, 10),
+          child: MemoAttachmentBar(
+            key: ValueKey(board.id),
+            boardId: board.id,
+            bg: bg,
+            onDelete: onDelete,
+          ),
+        ),
       ],
     );
   }
@@ -1315,7 +1417,11 @@ class _CornerNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(text, textAlign: align, style: _hand(15, bg.onBackgroundMuted));
+    return Text(
+      text,
+      textAlign: align,
+      style: _hand(_listSize(15), bg.onBackgroundMuted),
+    );
   }
 }
 
@@ -1592,7 +1698,7 @@ class _BoardCardState extends State<_BoardCard> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          for (var i = 0; i < widget.entries.length; i++)
+                          for (var i = 0; i < widget.entries.length; i++) ...[
                             _EntryRow(
                               key: ValueKey(widget.entries[i].id),
                               entry: widget.entries[i],
@@ -1607,6 +1713,20 @@ class _BoardCardState extends State<_BoardCard> {
                                 caret,
                               ),
                             ),
+                            // 이 줄 바로 아래에 넣어 둔 사진·동영상·파일.
+                            InlineAttachments(
+                              key: ValueKey('after-${widget.entries[i].id}'),
+                              boardId: board.id,
+                              entryId: widget.entries[i].id,
+                              ink: p.ink,
+                            ),
+                          ],
+                          // 놓인 줄이 없거나 지워진 첨부는 글 맨 끝에 둔다.
+                          InlineAttachments(
+                            key: ValueKey('end-${board.id}'),
+                            boardId: board.id,
+                            ink: p.ink,
+                          ),
                           // 컨셉아트처럼 빈 줄도 괘선으로 남겨 둔다. 여기엔
                           // 줄 앞 표시를 찍지 않는다 — 아직 만든 줄이 아니라
                           // 카드를 채우는 장식이다.
@@ -1628,14 +1748,6 @@ class _BoardCardState extends State<_BoardCard> {
                           color: p.tint.withValues(alpha: .45),
                         ),
                       ),
-
-                    // 이 메모 지우기
-                    Positioned(
-                      left: catOnRight ? 16 : null,
-                      right: catOnRight ? null : 16,
-                      bottom: 14,
-                      child: _TrashButton(palette: p, onTap: widget.onDelete),
-                    ),
                   ],
                 ),
               ),
@@ -1798,47 +1910,6 @@ class _GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _GridPainter old) => old.color != color;
-}
-
-/// 이 메모를 통째로 지우는 단추. 줄은 엔터로 늘리고 빈 괘선을 눌러 쓴다.
-class _TrashButton extends StatelessWidget {
-  const _TrashButton({required this.palette, required this.onTap});
-
-  final CardPalette palette;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: '이 메모 지우기',
-      child: InkWell(
-        onTap: onTap,
-        // 줄 사이를 오갈 때 이 단추에 초점이 걸리지 않게 한다.
-        canRequestFocus: false,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: palette.tint,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: palette.tint.withValues(alpha: .35),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.delete_outline_rounded,
-            size: 19,
-            color: Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// 글줄 한 칸의 셈.
@@ -2044,6 +2115,10 @@ class _EntryRowState extends State<_EntryRow> {
   }
 
   void _onFocusChanged() {
+    // 사진을 넣을 때 이 줄 아래에 놓으려고, 커서가 머문 줄을 기억해 둔다.
+    if (_focus.hasFocus) {
+      MemoStore.instance.rememberFocusedEntry(widget.board.id, widget.entry.id);
+    }
     if (!_focus.hasFocus) {
       _wantEdit = false;
       // 붙여넣기처럼 표식째 갈아치운 뒤에는 커서가 떠난 김에 되살린다.

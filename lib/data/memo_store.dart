@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/memo.dart';
+import '../models/attachment.dart';
 
 /// 로컬 우선 저장소.
 ///
@@ -23,6 +24,7 @@ class MemoStore extends ChangeNotifier {
 
   final List<Board> _boards = [];
   final List<Entry> _entries = [];
+  final List<Attachment> _attachments = [];
 
   String _backgroundKey = 'coolWhite';
   String _fontKey = 'gamja';
@@ -42,6 +44,7 @@ class MemoStore extends ChangeNotifier {
   /// 스토어에 올라온 판 가운데 이미 한 번 알린 것. 같은 판을 켤 때마다
   /// 다시 묻지 않으려고 적어 둔다.
   String _toldStoreVersion = '';
+  DateTime? _toldStoreAt;
 
   /// 목록에서 카드를 늘어놓는 차례.
   BoardSort _sort = BoardSort.edited;
@@ -60,6 +63,9 @@ class MemoStore extends ChangeNotifier {
   String? get fontFamily => _fontKey == 'system' ? null : fontOptions[_fontKey];
   String get deviceId => _deviceId;
   String get toldStoreVersion => _toldStoreVersion;
+
+  /// 스토어의 새 판을 마지막으로 알린 때. 옛 파일에는 없어 null 이다.
+  DateTime? get toldStoreAt => _toldStoreAt;
   BoardSort get sort => _sort;
 
   @visibleForTesting
@@ -170,6 +176,13 @@ class MemoStore extends ChangeNotifier {
           (e) => Entry.fromJson(e as Map<String, dynamic>),
         ),
       );
+    _attachments
+      ..clear()
+      ..addAll(
+        (j['attachments'] as List? ?? []).map(
+          (item) => Attachment.fromJson(item as Map<String, dynamic>),
+        ),
+      );
     final settings = (j['settings'] as Map?)?.cast<String, dynamic>() ?? {};
     _backgroundKey = (settings['backgroundKey'] ?? 'coolWhite') as String;
     _fontKey = fontOptions.containsKey(settings['fontKey'])
@@ -178,6 +191,7 @@ class MemoStore extends ChangeNotifier {
     _seededSets = (settings['seedSets'] ?? 1) as int;
     _fixups = (settings['fixups'] ?? 0) as int;
     _toldStoreVersion = (settings['toldStoreVersion'] ?? '') as String;
+    _toldStoreAt = DateTime.tryParse((settings['toldStoreAt'] ?? '') as String);
     _sort = BoardSort.values.firstWhere(
       (s) => s.name == settings['sort'],
       orElse: () => BoardSort.edited,
@@ -412,6 +426,121 @@ class MemoStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  List<Attachment> attachmentsOf(String boardId) =>
+      _attachments.where((a) => a.boardId == boardId && !a.deleted).toList();
+
+  File attachmentFile(Attachment attachment) {
+    final root = _file;
+    if (root == null) throw StateError('저장소가 아직 준비되지 않았어요');
+    return File('${root.parent.path}/attachments/${attachment.storageName}');
+  }
+
+  /// 이 글에서 마지막으로 커서가 있던 줄. 저장하지 않는다 — 첨부를 어느 줄
+  /// 아래에 놓을지 정할 때만 쓴다.
+  final Map<String, String> _lastFocusedEntry = {};
+
+  void rememberFocusedEntry(String boardId, String entryId) =>
+      _lastFocusedEntry[boardId] = entryId;
+
+  /// 지금 첨부를 놓으면 들어갈 줄. 커서가 있던 줄이 아직 있으면 그 줄이고,
+  /// 없으면 null 이라 글 맨 끝이다.
+  String? entryForNewAttachment(String boardId) {
+    final id = _lastFocusedEntry[boardId];
+    if (id == null) return null;
+    return entriesOf(boardId).any((e) => e.id == id) ? id : null;
+  }
+
+  /// 이 줄 바로 아래에 놓인 첨부. 첨부한 차례를 지킨다.
+  List<Attachment> attachmentsAfter(String boardId, String entryId) =>
+      attachmentsOf(boardId).where((a) => a.afterEntryId == entryId).toList();
+
+  /// 놓인 줄이 없거나 지워져 글 맨 끝에 놓이는 첨부.
+  List<Attachment> attachmentsAtEnd(String boardId) {
+    final live = entriesOf(boardId).map((e) => e.id).toSet();
+    return attachmentsOf(boardId)
+        .where((a) => a.afterEntryId == null || !live.contains(a.afterEntryId))
+        .toList();
+  }
+
+  /// 크기나 놓인 줄을 바꾼다.
+  void setAttachmentLayout(
+    Attachment attachment, {
+    double? widthFraction,
+    String? afterEntryId,
+    bool moveToEnd = false,
+  }) {
+    if (widthFraction != null) {
+      attachment.widthFraction = widthFraction.clamp(
+        Attachment.minWidth,
+        Attachment.maxWidth,
+      );
+    }
+    if (afterEntryId != null || moveToEnd) {
+      attachment.afterEntryId = afterEntryId;
+    }
+    _bump(attachment.boardId);
+  }
+
+  Future<void> addAttachment({
+    required String boardId,
+    required String name,
+    required String kind,
+    required Stream<List<int>> bytes,
+    String? afterEntryId,
+  }) async {
+    if (_board(boardId)?.isAlive != true) return;
+    final id = newId();
+    final extension = name.contains('.') ? name.split('.').last : '';
+    final suffix = RegExp(r'^[a-zA-Z0-9]{1,12}$').hasMatch(extension)
+        ? '.${extension.toLowerCase()}'
+        : '';
+    final pending = Attachment(
+      id: id,
+      boardId: boardId,
+      name: name,
+      storageName: '$id$suffix',
+      kind: kind,
+      size: 0,
+    );
+    final target = attachmentFile(pending);
+    await target.parent.create(recursive: true);
+    final temp = File('${target.path}.part');
+    try {
+      final sink = temp.openWrite();
+      try {
+        await sink.addStream(bytes);
+        await sink.flush();
+      } finally {
+        await sink.close();
+      }
+      if (_board(boardId)?.isAlive != true) {
+        await temp.delete();
+        return;
+      }
+      await temp.rename(target.path);
+      final attachment = Attachment(
+        id: id,
+        boardId: boardId,
+        name: name,
+        storageName: pending.storageName,
+        kind: kind,
+        size: await target.length(),
+        afterEntryId: afterEntryId,
+      );
+      _attachments.add(attachment);
+      _bump(boardId);
+      await flush();
+    } catch (_) {
+      if (await temp.exists()) await temp.delete();
+      rethrow;
+    }
+  }
+
+  void setAttachmentDeleted(Attachment attachment, bool deleted) {
+    attachment.deleted = deleted;
+    _bump(attachment.boardId);
+  }
+
   // ------------------------------------------------------------------- 쓰기
 
   Entry addEntry(String boardId) {
@@ -488,6 +617,14 @@ class MemoStore extends ChangeNotifier {
   void deleteEntry(String entryId) {
     final e = _entry(entryId);
     if (e == null) return;
+    // 이 줄 아래에 놓였던 사진은 위 줄 아래로 옮겨 제자리에 남긴다. 그대로 두면
+    // 글 맨 끝으로 튀어 간다.
+    final live = entriesOf(e.boardId);
+    final at = live.indexWhere((x) => x.id == entryId);
+    final above = at > 0 ? live[at - 1].id : null;
+    for (final a in _attachments) {
+      if (a.afterEntryId == entryId) a.afterEntryId = above;
+    }
     e.deletedAt = DateTime.now().toUtc();
     e.touch();
     _bump(e.boardId);
@@ -528,10 +665,11 @@ class MemoStore extends ChangeNotifier {
     _persist();
   }
 
-  /// 스토어의 이 판을 한 번 알린 것으로 적어 둔다.
+  /// 스토어의 이 판을 알린 것으로 적어 둔다. 알린 때도 함께 적어, '나중에'를
+  /// 누른 사람에게 며칠 뒤 다시 한 번 알릴 수 있게 한다.
   void markStoreVersionTold(String version) {
-    if (_toldStoreVersion == version) return;
     _toldStoreVersion = version;
+    _toldStoreAt = DateTime.now().toUtc();
     _persist();
   }
 
@@ -600,7 +738,18 @@ class MemoStore extends ChangeNotifier {
     _saveTimer = Timer(const Duration(milliseconds: 400), flush);
   }
 
-  Future<void> flush() async {
+  Future<void> _pendingSave = Future<void>.value();
+
+  Future<void> flush() {
+    final next = _pendingSave.then((_) => _flushNow());
+    _pendingSave = next.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return next;
+  }
+
+  Future<void> _flushNow() async {
     _saveTimer?.cancel();
     final f = _file;
     if (f == null) return;
@@ -623,10 +772,12 @@ class MemoStore extends ChangeNotifier {
       'seedSets': _seededSets,
       'fixups': _fixups,
       'toldStoreVersion': _toldStoreVersion,
+      'toldStoreAt': _toldStoreAt?.toIso8601String(),
       'sort': _sort.name,
     },
     'boards': _boards.map((b) => b.toJson()).toList(),
     'entries': _entries.map((e) => e.toJson()).toList(),
+    'attachments': _attachments.map((a) => a.toJson()).toList(),
   };
 
   @override
