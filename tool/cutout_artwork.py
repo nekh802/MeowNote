@@ -78,11 +78,16 @@ class Art:
     off    여백 색에서 이만큼 벗어나면 그림으로 보고 멈춘다.
     step   이웃으로 번질 때 허용하는 색 차이. 종이 그라데이션은 넘고
            그림 경계는 못 넘는 값.
+    flecks 몸통과 떨어져 바깥에 붙은 옅은 조각을 지운다. 외곽선을 점선처럼
+           끊어 그린 아이는 몸 색이 종이와 비슷해, 외곽선 바깥에 남은 종이가
+           몸과 같은 색으로 남는다. 이 값(픽셀 수)보다 작은 옅은 덩어리 중
+           바깥 투명한 자리에 닿는 것만 지운다. 입 안 하이라이트처럼 그림
+           안에 갇힌 덩어리와, 몸통 하나로 이어진 큰 덩어리는 건드리지 않는다.
     """
 
     def __init__(self, box, sheet=1, grow="tlr", erase=(), wall=(), mirror=(),
                  bleach=(), keep=(), fill=(), blend=0, speck=16, page=250, dark=165.0, bridge=0,
-                 off=16.0, step=20.0):
+                 off=16.0, step=20.0, flecks=0):
         self.box = box
         self.wall = wall
         self.mirror = mirror
@@ -99,6 +104,7 @@ class Art:
         self.bridge = bridge
         self.off = off
         self.step = step
+        self.flecks = flecks
 
 
 ARTS = {
@@ -166,7 +172,7 @@ ARTS = {
     # 외곽선을 점선처럼 끊어 그린 아이. 몸 색도 노란 카드와 가까워
     # 틈을 막고 지운 뒤 되돌린다.
     "danchu": Art((1302, 574, 1495, 733), sheet=2, bridge=3, off=8.0,
-                  step=9.0,
+                  step=9.0, flecks=120,
                   # 오른쪽 위 모서리 장식과, 왼쪽 수염 위로 잘려 들어온
                   # 옆 칸 하트 끝.
                   erase=((1450, 574, 1495, 604), (1300, 654, 1314, 684))),
@@ -381,6 +387,8 @@ def cut(name, art):
                 j, k = d * 3, sidx * 3
                 for c in range(3):
                     raw[j + c] = round(raw[j + c] * (1 - t) + raw[k + c] * t)
+    if art.flecks:
+        drop_flecks(alpha, lum, w, h, art.flecks)
     crop_png(name, art, night_edges(raw, alpha, w, h), alpha, w, cl, ct,
              NIGHT)
     return crop_png(name, art, raw, alpha, w, cl, ct)
@@ -416,6 +424,54 @@ def night_edges(rgb, alpha, w, h):
             k, s = i * 3, near[i] * 3
             out[k:k + 3] = rgb[s:s + 3]
     return out
+
+
+def drop_flecks(alpha, lum, w, h, most, pale=215, skirt=200):
+    """몸통과 떨어져 바깥에 붙은 옅은 조각을 지운다.
+
+    옅은 픽셀(밝기 [pale] 초과)끼리 이어진 덩어리를 세어, [most] 보다 작고
+    투명한 자리에 닿는 것만 지운다. 지운 자리 바로 옆의 밝은 가장자리
+    ([skirt] 초과)도 함께 걷어, 흐릿한 테가 남지 않게 한다.
+    """
+    light = [alpha[i] > 40 and lum[i] > pale for i in range(w * h)]
+    seen = bytearray(w * h)
+    gone = []
+    for start in range(w * h):
+        if not light[start] or seen[start]:
+            continue
+        seen[start] = 1
+        stack, comp = [start], []
+        while stack:
+            i = stack.pop()
+            comp.append(i)
+            x, y = i % w, i // w
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    nx, ny = x + dx, y + dy
+                    if 0 <= nx < w and 0 <= ny < h:
+                        j = ny * w + nx
+                        if light[j] and not seen[j]:
+                            seen[j] = 1
+                            stack.append(j)
+        if len(comp) >= most:
+            continue
+        outside = any(
+            not (0 <= i % w + dx < w and 0 <= i // w + dy < h)
+            or alpha[(i // w + dy) * w + i % w + dx] <= 40
+            for i in comp for dy in (-1, 0, 1) for dx in (-1, 0, 1))
+        if outside:
+            gone += comp
+    for i in gone:
+        alpha[i] = 0
+    for i in gone:
+        x, y = i % w, i // w
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h:
+                    j = ny * w + nx
+                    if alpha[j] and lum[j] > skirt and not light[j]:
+                        alpha[j] = 0
 
 
 def cells(x1, y1, x2, y2, cl, ct, w, h):
