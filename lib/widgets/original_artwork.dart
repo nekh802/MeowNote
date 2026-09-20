@@ -32,9 +32,12 @@ class OriginalArtwork extends StatelessWidget {
     _ => const Rect.fromLTRB(316, 126, 500, 244),
   };
 
-  /// 오려 둔 그림 파일. 이름을 모르면 첫 고양이로 돌아간다.
-  static String cutout(String art) =>
-      'assets/cutouts/${cutouts.contains(art) ? art : 'mochi'}.png';
+  /// 오려 둔 그림 파일. 이름을 모르면 첫 고양이로 돌아간다. [night] 이면
+  /// 테두리를 외곽선 색으로 이어 칠한 짝을 쓴다 — 남색 하늘 위에서 원본
+  /// 종이 색이 하얀 띠로 뜨지 않는다.
+  static String cutout(String art, {bool night = false}) =>
+      'assets/cutouts/${night ? 'night/' : ''}'
+      '${cutouts.contains(art) ? art : 'mochi'}.png';
 
   static const cutouts = <String>{
     'mochi',
@@ -57,7 +60,7 @@ class OriginalArtwork extends StatelessWidget {
     final rect = bounds(art);
     return ExcludeSemantics(
       child: Image.asset(
-        cutout(art),
+        cutout(art, night: NightArtwork.of(context)),
         width: width,
         height: width * rect.height / rect.width,
         fit: BoxFit.fill,
@@ -65,4 +68,18 @@ class OriginalArtwork extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 이 아래 그림들이 밤하늘 위에 놓이는지 알린다. 창(바텀시트)은 밝은 바탕이라
+/// 이 밖에 있어 낮 그림을 그대로 쓴다.
+class NightArtwork extends InheritedWidget {
+  const NightArtwork({super.key, required this.on, required super.child});
+
+  final bool on;
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<NightArtwork>()?.on ?? false;
+
+  @override
+  bool updateShouldNotify(NightArtwork oldWidget) => oldWidget.on != on;
 }

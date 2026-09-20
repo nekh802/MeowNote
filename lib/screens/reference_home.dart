@@ -140,7 +140,7 @@ class _ReferenceHomeState extends State<ReferenceHome>
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontFamily: 'Jua',
+                      fontFamily: 'GamjaFlower',
                       fontSize: 25,
                       height: 1.76,
                       color: Color(0xff765348),
@@ -179,7 +179,7 @@ class _ReferenceHomeState extends State<ReferenceHome>
                               : '',
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontFamily: 'Jua',
+                            fontFamily: 'GamjaFlower',
                             fontSize: 28,
                             color: Color(0xff765348),
                           ),
@@ -237,7 +237,7 @@ class _ReferenceHomeState extends State<ReferenceHome>
                             ChoiceChip(
                               label: Text(
                                 boards[i].title,
-                                style: const TextStyle(fontFamily: 'Jua'),
+                                style: const TextStyle(fontFamily: 'GamjaFlower'),
                               ),
                               selected: selected == i,
                               selectedColor: const Color(0xffffdce5),
@@ -263,7 +263,7 @@ class _ReferenceHomeState extends State<ReferenceHome>
                         icon: const Icon(Icons.tune_rounded, size: 18),
                         label: const Text(
                           '꾸미기 · 백업',
-                          style: TextStyle(fontFamily: 'Jua'),
+                          style: TextStyle(fontFamily: 'GamjaFlower'),
                         ),
                       ),
                     ],
@@ -347,7 +347,7 @@ class _MemoEditorState extends State<_MemoEditor> {
                   child: Text(
                     widget.board.title,
                     style: const TextStyle(
-                      fontFamily: 'Jua',
+                      fontFamily: 'GamjaFlower',
                       fontSize: 26,
                       color: Color(0xff765348),
                     ),

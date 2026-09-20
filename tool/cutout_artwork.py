@@ -13,6 +13,7 @@
 
 import struct
 import subprocess
+from collections import deque
 import sys
 import zlib
 from pathlib import Path
@@ -24,6 +25,10 @@ SHEETS = {
     2: ROOT / "assets" / "malang2.png",
 }
 OUT = ROOT / "assets" / "cutouts"
+# 밤하늘에서만 쓰는 짝. 테두리 색만 다르고 알파는 같다.
+NIGHT = OUT / "night"
+# 이보다 짙으면 테두리가 아니라 그림 몸통으로 본다.
+SOLID = 200
 SHEET = ROOT / "build" / "cutout_check"
 
 # 씨앗을 놓을 여백. 그림 바깥에서 시작해야 안쪽으로 새지 않는다.
@@ -97,7 +102,12 @@ class Art:
 
 
 ARTS = {
-    "mochi": Art((316, 126, 500, 244)),
+    # 머리 왼쪽과 귀 옆 "!!" 표시 사이로 흰 선이 한 줄 지나간다. 밝은
+    # 배경에서는 묻히지만 밤하늘에서는 떠 보인다.
+    "mochi": Art((316, 126, 500, 244),
+                 erase=((336, 161, 344, 162), (339, 162, 344, 163),
+                        (340, 163, 343, 164), (340, 164, 341, 165),
+                        (474, 161, 480, 162), (479, 162, 480, 163))),
     # 얼굴 아래가 카드 테두리에 닿아, 그 사이 흰 털이 테두리 색과 함께
     # 지워진다.
     "dalgi": Art((779, 407, 983, 532), fill=((830, 524, 953, 532),)),
@@ -371,7 +381,41 @@ def cut(name, art):
                 j, k = d * 3, sidx * 3
                 for c in range(3):
                     raw[j + c] = round(raw[j + c] * (1 - t) + raw[k + c] * t)
+    crop_png(name, art, night_edges(raw, alpha, w, h), alpha, w, cl, ct,
+             NIGHT)
     return crop_png(name, art, raw, alpha, w, cl, ct)
+
+
+def night_edges(rgb, alpha, w, h):
+    """반투명한 테두리 픽셀에 가장 가까운 불투명 픽셀의 색을 입힌다.
+
+    오려낸 테두리는 원본 종이와 섞인 밝은 색을 그대로 지니고 알파만 낮다.
+    흰 종이나 옅은 카드 위에서는 그 색이 배경과 같아 보이지 않지만, 남색
+    하늘 위에서는 외곽선을 따라 하얀 띠로 뜬다. 외곽선 색을 바깥으로 이어
+    칠하면 알파가 그대로라 모양은 같고, 테두리가 하늘 쪽으로 곱게 스민다.
+    """
+    near = [-1] * (w * h)
+    todo = deque()
+    for i in range(w * h):
+        # 원본 알파가 조금 모자란 몸통(250 남짓)도 온전한 그림으로 본다.
+        if alpha[i] >= SOLID:
+            near[i] = i
+            todo.append(i)
+    while todo:
+        i = todo.popleft()
+        x, y = i % w, i // w
+        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+            if 0 <= nx < w and 0 <= ny < h:
+                j = ny * w + nx
+                if near[j] < 0:
+                    near[j] = near[i]
+                    todo.append(j)
+    out = bytearray(rgb)
+    for i in range(w * h):
+        if 0 < alpha[i] < SOLID and near[i] >= 0:
+            k, s = i * 3, near[i] * 3
+            out[k:k + 3] = rgb[s:s + 3]
+    return out
 
 
 def cells(x1, y1, x2, y2, cl, ct, w, h):
@@ -519,7 +563,7 @@ def soften(px, alpha, walled, w, h):
         alpha[i] = a
 
 
-def crop_png(name, art, rgb, alpha, w, cl, ct):
+def crop_png(name, art, rgb, alpha, w, cl, ct, out=OUT):
     """선언한 좌표로 되돌려 저장한다 — 배치 좌표는 그대로 쓴다."""
     left, top, right, bottom = art.box
     ox, oy, ow, oh = left - cl, top - ct, right - left, bottom - top
@@ -532,7 +576,7 @@ def crop_png(name, art, rgb, alpha, w, cl, ct):
             k = i * 3
             rows += bytes((rgb[k], rgb[k + 1], rgb[k + 2], alpha[i]))
             kept += alpha[i] > 0
-    write_png(OUT / f"{name}.png", ow, oh, rows)
+    write_png(out / f"{name}.png", ow, oh, rows)
     return f"{name}: {ow}x{oh}, 남긴 픽셀 {kept * 100 // (ow * oh)}%"
 
 
@@ -561,6 +605,7 @@ def check_sheet():
 
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
+    NIGHT.mkdir(parents=True, exist_ok=True)
     for name, art in ARTS.items():
         print(cut(name, art))
     if "--check" in sys.argv:

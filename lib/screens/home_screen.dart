@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/gestures.dart' show TapGestureRecognizer;
@@ -16,6 +15,7 @@ import '../models/memo.dart';
 import '../theme/palette.dart';
 import '../widgets/cat_face.dart';
 import '../widgets/original_artwork.dart';
+import '../widgets/star_field.dart';
 
 /// 앱스토어에서 이 앱을 찾을 이름표. 기기에 적어 둔 메모가 이 이름에
 /// 매여 있어 이름을 바꾼 뒤에도 그대로 두었다.
@@ -23,7 +23,7 @@ const appBundleId = 'com.mallang.mallangMemo';
 
 /// 컨셉아트의 손글씨 느낌 — 모서리 장식 문구에 쓴다.
 TextStyle _hand(double size, Color color) => TextStyle(
-  fontFamily: 'GamjaFlower',
+  fontFamily: MemoStore.instance.fontFamily,
   fontSize: size,
   color: color,
   height: 1.35,
@@ -31,7 +31,7 @@ TextStyle _hand(double size, Color color) => TextStyle(
 
 /// 제목·카드 이름에 쓰는 둥근 서체.
 TextStyle _round(double size, Color color) => TextStyle(
-  fontFamily: 'Jua',
+  fontFamily: MemoStore.instance.fontFamily,
   fontSize: size,
   color: color,
   letterSpacing: .3,
@@ -128,54 +128,54 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: Stack(
               children: [
                 // 밤하늘에만 별이 뜬다. 다른 배경에서는 아무것도 얹지 않는다.
-                if (bg.starry)
-                  const Positioned.fill(
-                    child: IgnorePointer(child: _StarField()),
-                  ),
-                SafeArea(
-                  child: PageView(
-                    controller: _pages,
-                    // 페이지를 넘길 때 자판이 따라오면 다음 장을 덮는다.
-                    onPageChanged: (_) =>
-                        FocusManager.instance.primaryFocus?.unfocus(),
-                    children: [
-                      _LibraryPage(
-                        bg: bg,
-                        pinned: _store.pinnedBoards,
-                        loose: _store.looseBoards,
-                        selectedId: selected?.id,
-                        onPick: _pickBoard,
-                        onPin: (b) {
-                          HapticFeedback.lightImpact();
-                          setState(() => _store.togglePin(b.id));
-                        },
-                        onPickBackground: _openBackgroundSheet,
-                        onExport: _exportAllBoards,
-                        onSort: _openMoreSheet,
-                        onAddBoard: _addBoard,
-                        matches: _matches,
-                        sort: _store.sort,
-                      ),
-                      if (selected == null)
-                        const SizedBox()
-                      else
-                        _Vanishing(
-                          gone: _vanishingBoardId == selected.id,
-                          duration: _vanishDuration,
-                          child: _MemoPage(
-                            bg: bg,
-                            board: selected,
-                            entries: _store.entriesOf(selected.id),
-                            focus: _focus,
-                            onBack: _openLibrary,
-                            onAdd: () => _addEntry(selected),
-                            onEnter: _splitEntry,
-                            onExport: () => _exportBoard(selected),
-                            onDelete: () => _deleteBoard(selected),
-                            onOpenSettings: () => _openBoardSheet(selected),
-                          ),
+                if (bg.starry) const Positioned.fill(child: StarField()),
+                NightArtwork(
+                  on: bg.isDark,
+                  child: SafeArea(
+                    child: PageView(
+                      controller: _pages,
+                      // 페이지를 넘길 때 자판이 따라오면 다음 장을 덮는다.
+                      onPageChanged: (_) =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
+                      children: [
+                        _LibraryPage(
+                          bg: bg,
+                          pinned: _store.pinnedBoards,
+                          loose: _store.looseBoards,
+                          selectedId: selected?.id,
+                          onPick: _pickBoard,
+                          onPin: (b) {
+                            HapticFeedback.lightImpact();
+                            setState(() => _store.togglePin(b.id));
+                          },
+                          onPickBackground: _openBackgroundSheet,
+                          onExport: _exportAllBoards,
+                          onSort: _openMoreSheet,
+                          onAddBoard: _addBoard,
+                          matches: _matches,
+                          sort: _store.sort,
                         ),
-                    ],
+                        if (selected == null)
+                          const SizedBox()
+                        else
+                          _Vanishing(
+                            gone: _vanishingBoardId == selected.id,
+                            duration: _vanishDuration,
+                            child: _MemoPage(
+                              bg: bg,
+                              board: selected,
+                              entries: _store.entriesOf(selected.id),
+                              focus: _focus,
+                              onBack: _openLibrary,
+                              onAdd: () => _addEntry(selected),
+                              onEnter: _splitEntry,
+                              onExport: () => _exportBoard(selected),
+                              onDelete: () => _deleteBoard(selected),
+                              onOpenSettings: () => _openBoardSheet(selected),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -321,7 +321,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               const _SheetLabel('정리하기'),
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.delete_outline_rounded),
+                leading: const SizedBox.square(
+                  dimension: 24,
+                  child: Center(
+                    child: Icon(
+                      Icons.delete_rounded,
+                      size: 24,
+                      color: _pickInk,
+                    ),
+                  ),
+                ),
                 // 앱 이름과 같은 둥근 서체로 적는다.
                 title: Text('메모 지우기', style: _round(16, _pickInk)),
                 subtitle: Text(
@@ -333,11 +342,105 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   _openDeleteSheet();
                 },
               ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const SizedBox.square(
+                  dimension: 24,
+                  child: Center(
+                    child: Icon(Icons.title_rounded, size: 24, color: _pickInk),
+                  ),
+                ),
+                title: Text('폰트 변경하기', style: _round(16, _pickInk)),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _openFontSheet();
+                },
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _openFontSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AnimatedBuilder(
+        animation: _store,
+        builder: (context, _) => SingleChildScrollView(
+          child: _Sheet(
+            title: '폰트 변경하기',
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final option in const {
+                  'gamja': '감자꽃체',
+                  'jua': '주아체',
+                  'system': '기본 제공 폰트',
+                }.entries)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Semantics(
+                      selected: _store.fontKey == option.key,
+                      child: ListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppTone.radius),
+                        ),
+                        tileColor: _store.fontKey == option.key
+                            ? AppTone.picked
+                            : null,
+                        title: Text(
+                          option.value,
+                          style: TextStyle(
+                            fontFamily: option.key == 'system'
+                                ? null
+                                : MemoStore.fontOptions[option.key],
+                            // 더보기 창의 '폰트 변경하기' 줄과 같은 크기.
+                            fontSize: 16,
+                            color: AppTone.ink,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '말랑 고양이 메모 · 오늘의 기분',
+                          style: TextStyle(
+                            fontFamily: option.key == 'system'
+                                ? null
+                                : MemoStore.fontOptions[option.key],
+                            fontSize: 15,
+                            color: AppTone.ink,
+                          ),
+                        ),
+                        trailing: _store.fontKey == option.key
+                            ? const Icon(
+                                Icons.check_rounded,
+                                color: AppTone.ink,
+                              )
+                            : null,
+                        onTap: () => _store.setFont(option.key),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('완료'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await _store.flush();
   }
 
   /// 펼쳐 둔 메모 한 장을 지운다.
@@ -649,7 +752,7 @@ class _LibraryPageState extends State<_LibraryPage>
                             child: Text(
                               '찾는 메모가 없어요',
                               style: TextStyle(
-                                fontSize: 13,
+                                fontSize: 12,
                                 color: bg.onBackgroundMuted,
                               ),
                             ),
@@ -714,14 +817,14 @@ class _SearchBox extends StatelessWidget {
               key: const Key('memo-search'),
               controller: controller,
               onChanged: onChanged,
-              style: TextStyle(fontSize: 15, color: ink),
+              style: TextStyle(fontSize: 14, color: ink),
               decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 13),
                 hintText: '메모 찾기',
                 hintStyle: TextStyle(
-                  fontSize: 15,
+                  fontSize: 14,
                   color: ink.withValues(alpha: .4),
                 ),
               ),
@@ -783,7 +886,10 @@ class _PickerBox extends StatelessWidget {
                 // 앱 이름을 여기에 못 박는다. 어느 메모를 펼쳐 두었는지는
                 // 아래 블록의 체크 표시가 알려 준다.
                 '말랑 고양이 메모',
-                style: _round(19, p?.inkOn(bg.isDark) ?? bg.onBackground),
+                style: _round(
+                  MemoStore.instance.fontKey == 'gamja' ? 19 : 18,
+                  p?.inkOn(bg.isDark) ?? bg.onBackground,
+                ),
               ),
             ),
             AnimatedRotation(
@@ -841,7 +947,7 @@ class _GroupLabel extends StatelessWidget {
     padding: const EdgeInsets.only(left: 4, bottom: 6),
     child: Row(
       children: [
-        Text(text, style: TextStyle(fontSize: 12, color: bg.onBackgroundMuted)),
+        Text(text, style: TextStyle(fontSize: 11, color: bg.onBackgroundMuted)),
         if (hint != null) ...[
           const SizedBox(width: 6),
           Tooltip(
@@ -859,54 +965,6 @@ class _GroupLabel extends StatelessWidget {
       ],
     ),
   );
-}
-
-/// 밤하늘 배경에 뿌리는 별. 자리와 밝기는 붙박은 씨앗에서 뽑으므로, 화면을
-/// 다시 그려도 별이 옮겨 다니지 않는다.
-class _StarField extends StatelessWidget {
-  const _StarField();
-
-  /// 화면 넓이 10만 제곱점마다 별 몇 개를 둘지. 시안보다 3할 성글게 잡았다.
-  static const _perArea = 10.5;
-
-  @override
-  Widget build(BuildContext context) =>
-      CustomPaint(painter: _StarPainter(), isComplex: true);
-}
-
-class _StarPainter extends CustomPainter {
-  /// 같은 씨앗이면 언제나 같은 하늘이 된다.
-  static const _seed = 20260919;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rnd = math.Random(_seed);
-    final count = (size.width * size.height / 100000 * _StarField._perArea)
-        .round();
-    final paint = Paint()..color = Colors.white;
-    for (var i = 0; i < count; i++) {
-      final at = Offset(
-        rnd.nextDouble() * size.width,
-        rnd.nextDouble() * size.height,
-      );
-      // 밝기도 시안보다 3할 낮춰, 글씨를 읽는 데 걸리지 않게 한다.
-      final glow = rnd.nextDouble();
-      final r = .5 + glow * 1.1;
-      paint.color = Colors.white.withValues(alpha: .10 + glow * .49);
-      canvas.drawCircle(at, r, paint);
-      // 가장 밝은 몇 개만 사방으로 빛을 흘린다.
-      if (glow > .93) {
-        canvas.drawCircle(
-          at,
-          r * 3.2,
-          Paint()..color = Colors.white.withValues(alpha: .07),
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _StarPainter oldDelegate) => false;
 }
 
 /// 작은 블록 한 장의 셈.
@@ -1022,7 +1080,13 @@ class _BoardChip extends StatelessWidget {
               Icon(Icons.push_pin, size: 12, color: ink),
               const SizedBox(width: 5),
             ],
-            Text(board.title, style: _round(14, ink)),
+            Text(
+              board.title,
+              style: _round(
+                MemoStore.instance.fontKey == 'gamja' ? 14 : 13,
+                ink,
+              ),
+            ),
           ],
         ),
       ),
@@ -1251,7 +1315,7 @@ class _CornerNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(text, textAlign: align, style: _hand(16, bg.onBackgroundMuted));
+    return Text(text, textAlign: align, style: _hand(15, bg.onBackgroundMuted));
   }
 }
 
@@ -1462,7 +1526,7 @@ class _BoardCardState extends State<_BoardCard> {
                                       Flexible(
                                         child: _InlineText(
                                           value: board.title,
-                                          style: _round(24, p.ink),
+                                          style: _round(20, p.ink),
                                           maxLines: 2,
                                           onChanged: (v) => MemoStore.instance
                                               .updateBoard(board.id, title: v),

@@ -25,6 +25,13 @@ class MemoStore extends ChangeNotifier {
   final List<Entry> _entries = [];
 
   String _backgroundKey = 'coolWhite';
+  String _fontKey = 'gamja';
+
+  static const fontOptions = {
+    'gamja': 'GamjaFlower',
+    'jua': 'Jua',
+    'system': '',
+  };
 
   /// 이 기기에 이미 들어온 기본 카드 묶음의 수. 예전 파일에는 없으므로
   /// 첫 묶음만 받은 것으로 본다.
@@ -49,6 +56,8 @@ class MemoStore extends ChangeNotifier {
 
   bool get isLoaded => _loaded;
   String get backgroundKey => _backgroundKey;
+  String get fontKey => _fontKey;
+  String? get fontFamily => _fontKey == 'system' ? null : fontOptions[_fontKey];
   String get deviceId => _deviceId;
   String get toldStoreVersion => _toldStoreVersion;
   BoardSort get sort => _sort;
@@ -163,6 +172,9 @@ class MemoStore extends ChangeNotifier {
       );
     final settings = (j['settings'] as Map?)?.cast<String, dynamic>() ?? {};
     _backgroundKey = (settings['backgroundKey'] ?? 'coolWhite') as String;
+    _fontKey = fontOptions.containsKey(settings['fontKey'])
+        ? settings['fontKey'] as String
+        : 'gamja';
     _seededSets = (settings['seedSets'] ?? 1) as int;
     _fixups = (settings['fixups'] ?? 0) as int;
     _toldStoreVersion = (settings['toldStoreVersion'] ?? '') as String;
@@ -179,7 +191,7 @@ class MemoStore extends ChangeNotifier {
 
   /// 이미 만들어 둔 카드의 글귀를 손본 횟수. 새 값을 올리면 쓰던 기기에서도
   /// [_applyFixups] 가 한 번 돈다.
-  static const fixups = 4;
+  static const fixups = 5;
 
   /// 처음부터 목록 맨 위에 붙박아 두는 기본 카드의 제목.
   static const pinnedSeeds = {'하나씩 해볼까', '소소한 행복'};
@@ -189,8 +201,8 @@ class MemoStore extends ChangeNotifier {
   /// 둔다.
   static const _setStarts = [0, 6, 11];
 
-  /// 첫 실행에 놓이는 열두 장. 컨셉아트 두 장의 구성에 나비 한 장을
-  /// 더했다 — 한 장은 나중에 걷어냈고, 이미 받아 간 기기에서만
+  /// 첫 실행에 놓이는 열두 장. 컨셉아트 두 장의 구성에 '소소한 행복' 한
+  /// 장을 더했다 — 한 장은 나중에 걷어냈고, 이미 받아 간 기기에서만
   /// [_applyFixups] 가 흔적으로 남긴다. 이 구성은 test/seed_cards_test.dart
   /// 가 통째로 지킨다.
   void _seed({int from = 0}) {
@@ -268,16 +280,13 @@ class MemoStore extends ChangeNotifier {
             lines: <String>[],
           ),
           // 두 번째 이야기.
-          // 세 마리는 그림 한 장이라 자리가 아니라 고양이로 고른다. 그래서
-          // 자리가 trio 이면 cat 은 그려지지 않고, 한 마리로 되돌릴 때
-          // 어느 아이로 돌아갈지만 알려 준다.
           (
             title: '기분 좋은 시작',
             subtitle: '오늘의 작은 목표',
             color: 'sky',
-            cat: 'haneul',
+            cat: 'mochi',
             badge: 'spark',
-            pose: CatPose.trio,
+            pose: CatPose.peekTop,
             kind: BoardKind.hearts,
             lines: <String>[],
           ),
@@ -321,12 +330,12 @@ class MemoStore extends ChangeNotifier {
             kind: BoardKind.note,
             lines: <String>[],
           ),
-          // 세 번째 묶음. 윙크하며 앞발을 올린 나비.
+          // 세 번째 묶음.
           (
             title: '소소한 행복',
             subtitle: '오늘 나를 웃게 한 것',
             color: 'blossom',
-            cat: 'nabi',
+            cat: 'mochi',
             badge: 'paw',
             pose: CatPose.peekBottom,
             kind: BoardKind.hearts,
@@ -377,8 +386,19 @@ class MemoStore extends ChangeNotifier {
       if (board.title == '잠깐 쉬어가기') board.subtitle = '천천히 해도 괜찮아';
       final moved = movedBadges[board.badgeKey];
       if (moved != null) board.badgeKey = moved;
-      // 할 일 카드와 나비 카드는 처음부터 목록 맨 위에 붙박아 둔다.
+      // 할 일 카드와 소소한 행복 카드는 처음부터 목록 맨 위에 붙박아 둔다.
       if (pinnedSeeds.contains(board.title)) board.pinnedAt ??= stamp;
+      // 두 카드의 기본 고양이를 모찌로 바꿨다. 처음 받은 모습 그대로인
+      // 카드만 옮기고, 직접 다른 아이를 골라 둔 카드는 그대로 둔다.
+      if (board.title == '소소한 행복' && board.catId == 'nabi') {
+        board.catId = 'mochi';
+      }
+      if (board.title == '기분 좋은 시작' &&
+          board.catId == 'haneul' &&
+          board.pose == CatPose.trio) {
+        board.catId = 'mochi';
+        board.pose = CatPose.peekTop;
+      }
     }
   }
 
@@ -496,6 +516,12 @@ class MemoStore extends ChangeNotifier {
     _persist();
   }
 
+  void setFont(String key) {
+    if (!fontOptions.containsKey(key) || _fontKey == key) return;
+    _fontKey = key;
+    _persist();
+  }
+
   void setBackground(String key) {
     if (_backgroundKey == key) return;
     _backgroundKey = key;
@@ -593,6 +619,7 @@ class MemoStore extends ChangeNotifier {
     'counts': {'boards': _boards.length, 'entries': _entries.length},
     'settings': {
       'backgroundKey': _backgroundKey,
+      'fontKey': _fontKey,
       'seedSets': _seededSets,
       'fixups': _fixups,
       'toldStoreVersion': _toldStoreVersion,
