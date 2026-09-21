@@ -237,7 +237,9 @@ class _ReferenceHomeState extends State<ReferenceHome>
                             ChoiceChip(
                               label: Text(
                                 boards[i].title,
-                                style: const TextStyle(fontFamily: 'GamjaFlower'),
+                                style: const TextStyle(
+                                  fontFamily: 'GamjaFlower',
+                                ),
                               ),
                               selected: selected == i,
                               selectedColor: const Color(0xffffdce5),

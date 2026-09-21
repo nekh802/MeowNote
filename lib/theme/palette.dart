@@ -10,6 +10,7 @@ class CardPalette {
     required this.ink,
     required this.line,
     required this.tint,
+    this.night = false,
   });
 
   final String key;
@@ -18,6 +19,22 @@ class CardPalette {
   final Color ink; // 제목·본문 글자
   final Color line; // 괘선·체크박스 테두리
   final Color tint; // 강조 (+ 버튼, 체크 표시)
+
+  /// 밤하늘 위에서 쓰는 모습인지. 체크 표시처럼 바탕에 따라 색이 갈리는 곳이 본다.
+  final bool night;
+
+  /// 밤하늘 위에 놓일 때의 모습. 카드는 반투명한 남색 박스가 되어 파스텔
+  /// 바탕을 깔지 않으므로, 글자·괘선·강조를 카드 색의 밝은 짝으로 바꾼다.
+  /// 어느 카드인지는 바탕이 아니라 이 색으로 알아본다.
+  CardPalette onNight() => CardPalette(
+    key: key,
+    label: label,
+    bg: bg,
+    ink: nightInk,
+    line: nightInk.withValues(alpha: .24),
+    tint: nightInk,
+    night: true,
+  );
 
   /// 밤하늘 위에 놓일 때 쓰는 글자색. [ink] 는 밝은 카드 바탕을 전제로 한
   /// 짙은 색이라, 남색 위에 그대로 얹으면 글씨가 묻힌다. 카드 색을 그대로
@@ -181,6 +198,16 @@ class BackgroundTheme {
   Color get panel => isDark
       ? const Color(0xFF7FB2E8).withValues(alpha: .10)
       : Colors.white.withValues(alpha: .45);
+
+  /// 목록 페이지의 블록·검색칸·단추가 까는 바탕. 밤하늘에서는 하늘빛 남색을 반투명
+  /// (50%)으로 깔아 뒤의 별이 비친다. 메모 페이지의 카드는 이것이 아니라 불투명한
+  /// 박스를 쓴다. 밤하늘이 아니면 [panel] 과 같다.
+  Color get listPanel =>
+      isDark ? const Color(0xFF3B5A88).withValues(alpha: .5) : panel;
+
+  /// 메모 페이지 카드가 까는 불투명한 남색. 목록의 반투명 블록(뒤의 하늘이 섞여
+  /// 약 #223653)보다 한 단계 밝아, 카드가 하늘과 또렷이 갈린다.
+  static const memoBox = Color(0xFF2A3A55);
 
   /// 그 바탕을 두르는 테두리.
   Color get panelEdge => isDark

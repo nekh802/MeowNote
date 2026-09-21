@@ -24,6 +24,17 @@ SHEETS = {
     1: ROOT / "assets" / "malang1.png",
     2: ROOT / "assets" / "malang2.png",
 }
+# 남색 밤하늘 위에 그린 세 번째 장. 종이가 아니라 어두운 바탕이라
+# cut_space 가 따로 오려낸다.
+SPACE_SHEET = ROOT / "assets" / "malang3.png"
+SPACE_SIZE = (1024, 1536)
+SPACE_BG = (15, 26, 52)
+# 네 번째 장도 같은 남색 하늘이지만 바탕이 조금 더 푸르다. 장마다 견본을 따로 둔다.
+SPACE_SHEET2 = ROOT / "assets" / "malang4.png"
+SPACE_BG2 = (11, 26, 56)
+# 다섯 번째 장. 바탕이 가장 어둡고, 그림 둘레에 옅은 빛무리가 있다.
+SPACE_SHEET3 = ROOT / "assets" / "malang5.png"
+SPACE_BG3 = (8, 24, 54)
 OUT = ROOT / "assets" / "cutouts"
 # 밤하늘에서만 쓰는 짝. 테두리 색만 다르고 알파는 같다.
 NIGHT = OUT / "night"
@@ -177,6 +188,297 @@ ARTS = {
                   # 옆 칸 하트 끝.
                   erase=((1450, 574, 1495, 604), (1300, 654, 1314, 684))),
 }
+
+
+# 우주 고양이 여섯 마리. 칸은 그림 하나와 그 곁의 별·점을 담는다 — 위아래는
+# y=530, y=1000 에서, 왼쪽과 오른쪽은 줄마다 그림 사이의 빈 곳에서 가른다.
+SPACE_ARTS = {
+    "ujoo": (20, 40, 514, 530),        # 유에프오를 탄 검은 고양이
+    "byeoltong": (514, 30, 1024, 530),  # 별 그물을 든 주황 줄무늬
+    "dalbit": (0, 530, 503, 1000),      # 달 위에서 망원경을 보는 삼색
+    "eunha": (503, 530, 1024, 1000),    # 망토에 물뿌리개, 별꽃 소행성
+    "choco": (0, 1000, 476, 1536),      # 별 수첩에 쓰는 샴
+    "pyeonji": (476, 1000, 1024, 1536),  # 별 우체통에 편지 넣는 턱시도
+}
+
+
+# 네 번째 장의 여섯 마리. 위아래는 y=540, y=1000 (줄 사이 빈 곳), 왼쪽과 오른쪽은
+# 줄마다 그림 사이의 빈 곳에서 가른다.
+SPACE_ARTS2 = {
+    "cho": (20, 40, 506, 540),        # 초승달에 누운 보라 무늬
+    "byeol2": (506, 60, 1024, 540),   # 별을 끌어안은 삼색
+    "usubu": (20, 540, 506, 1000),    # 우주복을 입은 삼색
+    "got": (506, 540, 1024, 1000),    # 고리 행성 위의 두 마리
+    "rocket": (0, 1000, 500, 1536),   # 로켓을 탄 삼색
+    "byeoljari": (500, 1000, 1024, 1536),  # 별자리 아래 앉은 세 마리
+}
+
+
+# 다섯 번째 장의 여섯 마리. 세로 줄마다 그림 사이의 빈 곳이 달라 칸을 따로 잡는다.
+SPACE_ARTS3 = {
+    "nakksi": (0, 40, 530, 567),         # 파란 행성에서 별을 낚는 잠옷 쓴 아이
+    "yuribyeong": (530, 40, 1024, 490),  # 별을 담은 유리병을 안은 주황 줄무늬
+    "wiseong": (0, 567, 550, 1000),      # 인공위성에 앉은 턱시도
+    "pungseon": (550, 490, 1024, 1010),  # 행성 풍선을 든 삼색
+    "haemak": (0, 1000, 515, 1536),      # 달 해먹에 누운 샴
+    "byeolit": (515, 1010, 1024, 1536),  # 달 위에서 별을 이어 붙이는 두 마리
+}
+
+
+# 갇힌 빈 바탕이 기준으로는 안 잡히는 자리(그림 안쪽 빛무리가 스민 곳). 원본 좌표
+# 사각형 안에서 어둡고 붉은 기 없는 픽셀만 지운다. 갈색 외곽선은 붉어서 남고
+# 털이나 그림 색은 밝아서 남는다.
+SPACE_ERASE = {
+    # 행성 고리 안쪽, 그리고 풍선 끈 사이.
+    "nakksi": [(80, 358, 125, 402)],
+    # 끈 사이만. 귀의 회색 무늬(x<795, y>735)는 이 색 기준에 걸리므로 비켜 잡는다.
+    "pungseon": [(762, 685, 800, 733), (800, 730, 860, 765)],
+}
+
+
+def erase_navy(rgba, px, w, rects):
+    for x0, y0, x1, y1 in rects:
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                i = y * w + x
+                r, g, b = px[i * 3], px[i * 3 + 1], px[i * 3 + 2]
+                lum = 0.299 * r + 0.587 * g + 0.114 * b
+                # 어둡고(밝기 105 미만) 붉은 기가 거의 없는 것(r-g 가 작음)만. 갈색
+                # 외곽선은 r-g 가 40 넘게 벌어져 남는다.
+                if lum < 105 and (r - g) < 24 and (r - b) < 24:
+                    rgba[i * 4 + 3] = 0
+
+
+def read_space(sheet=None):
+    """우주 고양이 장을 (가로, 세로, RGB 바이트)로 읽는다."""
+    w, h = SPACE_SIZE
+    raw = subprocess.run(
+        ["magick", str(sheet or SPACE_SHEET), "-alpha", "off", "-depth", "8",
+         "ppm:-"], check=True, capture_output=True).stdout
+    return w, h, parse_pnm(raw, w, h, 3)
+
+
+def outside_mask(px, w, h, bg=SPACE_BG, tol=30):
+    """가장자리에서 바탕색을 따라 이어진 자리. 몸통 안의 검은 털처럼 바탕과
+    비슷해도 외곽선에 둘러싸인 곳은 여기 들지 않는다."""
+    limit = tol * tol
+    def near(i):
+        k = i * 3
+        return ((px[k] - bg[0]) ** 2 + (px[k + 1] - bg[1]) ** 2
+                + (px[k + 2] - bg[2]) ** 2) <= limit
+    out = bytearray(w * h)
+    todo = deque()
+    for x in range(w):
+        for y in (0, h - 1):
+            i = y * w + x
+            if not out[i] and near(i):
+                out[i] = 1
+                todo.append(i)
+    for y in range(h):
+        for x in (0, w - 1):
+            i = y * w + x
+            if not out[i] and near(i):
+                out[i] = 1
+                todo.append(i)
+    while todo:
+        i = todo.popleft()
+        x, y = i % w, i // w
+        for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+            if 0 <= nx < w and 0 <= ny < h:
+                j = ny * w + nx
+                if not out[j] and near(j):
+                    out[j] = 1
+                    todo.append(j)
+    return out
+
+
+def space_layer(px, w, h, bg=SPACE_BG, weak=55.0, halo=8, pocket=12.0,
+                pocket_min=20):
+    """세 번째 장의 RGBA 를 만든다.
+
+    가장자리에서 바탕색을 따라 이어진 옅은 자리([weak] 보다 바탕에 가까운
+    픽셀)가 바깥이다. 별 둘레의 은은한 빛도 이만큼 옅어 바깥에 든다.
+
+    바깥과 닿은 가장자리 띠와 바깥 [halo] 칸 안쪽은 바탕 남색과 가까운 그림
+    색 사이 어디쯤인지로 알파를 정하고, 색은 남색이 섞인 채가 아니라 그 그림
+    색으로 칠한다. 섞인 채 두면 밝은 카드 위에서 그림 둘레가 남색 띠로 뜬다.
+    기준 색은 둘이다.
+      · 외곽선 색 — 바깥에서 2칸 넘게 들어간 가장 가까운 픽셀. 고양이의 갈색
+        외곽선 가장자리가 이쪽이다.
+      · 몸통 색 — 5칸 넘게 들어간 가장 가까운 픽셀. 별의 노란 몸통이다. 별
+        둘레의 빛은 이미 남색이 섞여 가장자리 픽셀을 기준으로 삼으면 그 탁한
+        색을 따라가 어두운 얼룩이 남으므로, 몸통 색 쪽 줄 위에 놓인 픽셀은 먼저
+        이 색으로 칠한다.
+    어느 쪽 줄에도 놓이지 않은 가장자리는 진짜 그림 디테일(수염, 작은 점)이라
+    그대로 둔다. 외곽선에 둘러싸인 자리는 바탕과 닮은 검은 털이라도 바깥이
+    아니므로 지우지 않는다.
+    """
+    out = outside_mask(px, w, h, bg, weak)
+
+    # 삼각대 다리 사이처럼 외곽선에 갇힌 빈 바탕. 바탕색과 거의 같은 덩어리는
+    # 바깥과 이어지지 않아도 지운다. 바탕과 닮은 검은 털(거리 26 안팎)은 이보다
+    # 훨씬 멀어 남는다.
+    def blank(i):
+        k = i * 3
+        return ((px[k] - bg[0]) ** 2 + (px[k + 1] - bg[1]) ** 2
+                + (px[k + 2] - bg[2]) ** 2) < pocket * pocket
+
+    seen = bytearray(w * h)
+    for start in range(w * h):
+        if out[start] or seen[start] or not blank(start):
+            continue
+        seen[start] = 1
+        stack, comp = [start], []
+        while stack:
+            i = stack.pop()
+            comp.append(i)
+            x, y = i % w, i // w
+            for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                if 0 <= nx < w and 0 <= ny < h:
+                    j = ny * w + nx
+                    if not out[j] and not seen[j] and blank(j):
+                        seen[j] = 1
+                        stack.append(j)
+        if len(comp) >= pocket_min:
+            for i in comp:
+                out[i] = 1
+
+    cap = 6
+    depth = [-1] * (w * h)
+    todo = deque()
+    for i in range(w * h):
+        if out[i]:
+            depth[i] = 0
+            todo.append(i)
+    while todo:
+        i = todo.popleft()
+        if depth[i] >= cap:
+            continue
+        x, y = i % w, i // w
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h:
+                    j = ny * w + nx
+                    if depth[j] < 0:
+                        depth[j] = depth[i] + 1
+                        todo.append(j)
+
+    def spread(min_depth, limit):
+        """[min_depth] 칸 넘게 안쪽인 픽셀의 색을 바깥 [limit] 칸까지 번지게 한다."""
+        near = [-1] * (w * h)
+        reach = bytearray(w * h)
+        q = deque()
+        for i in range(w * h):
+            # 깊이를 못 잰 자리(-1)는 cap 보다 깊다.
+            if not out[i] and (depth[i] < 0 or depth[i] > min_depth):
+                near[i] = i
+                q.append(i)
+        while q:
+            i = q.popleft()
+            if reach[i] >= limit:
+                continue
+            x, y = i % w, i // w
+            for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                if 0 <= nx < w and 0 <= ny < h:
+                    j = ny * w + nx
+                    if near[j] < 0:
+                        near[j] = near[i]
+                        reach[j] = reach[i] + 1
+                        q.append(j)
+        return near, reach
+
+    edge_ref, edge_reach = spread(1, halo + 2)
+
+    lum = [0.299 * px[i * 3] + 0.587 * px[i * 3 + 1] + 0.114 * px[i * 3 + 2]
+           for i in range(w * h)]
+
+    def brightest(i, reach=9, least=185.0):
+        """둘레에서 가장 밝은 그림 픽셀(별의 노란 몸통, 흰 털). 달처럼 어두운
+        물체는 밝지 않아 기준이 되지 못한다."""
+        x, y = i % w, i // w
+        best, best_lum = -1, least
+        for yy in range(max(0, y - reach), min(h, y + reach + 1), 2):
+            base = yy * w
+            for xx in range(max(0, x - reach), min(w, x + reach + 1), 2):
+                j = base + xx
+                if not out[j] and lum[j] > best_lum:
+                    best, best_lum = j, lum[j]
+        return best
+
+    def mix(i, f):
+        """i 번 픽셀을 바탕과 f 번 픽셀 사이의 섞임으로 볼 때 (몫, 줄에서 벗어난 거리)."""
+        k, fk = i * 3, f * 3
+        vr, vg, vb = px[fk] - bg[0], px[fk + 1] - bg[1], px[fk + 2] - bg[2]
+        norm = vr * vr + vg * vg + vb * vb
+        if norm == 0:
+            return 0.0, 1e9
+        pr, pg, pb = px[k] - bg[0], px[k + 1] - bg[1], px[k + 2] - bg[2]
+        t = (pr * vr + pg * vg + pb * vb) / norm
+        er, eg, eb = pr - t * vr, pg - t * vg, pb - t * vb
+        return t, (er * er + eg * eg + eb * eb) ** 0.5
+
+    rgba = bytearray(w * h * 4)
+    for i in range(w * h):
+        k, o = i * 3, i * 4
+        deep = not out[i] and (depth[i] < 0 or depth[i] > 4)
+        if deep:
+            rgba[o:o + 3] = px[k:k + 3]
+            rgba[o + 3] = 255
+            continue
+        pick = None
+        # 바깥에서 멀지 않은 픽셀만 별빛일 수 있다.
+        # 빛무리는 바탕이 섞여 어둡다. 밝은 픽셀(줄기, 잎)은 이 길로 보내지 않는다.
+        f = brightest(i) if depth[i] <= 4 and lum[i] < 115 else -1
+        if f >= 0 and f != i:
+            t, off = mix(i, f)
+            if off <= 22 and t > .03:
+                pick = (f, t, 0, 1)
+        if pick is None:
+            f = edge_ref[i]
+            if f >= 0 and f != i:
+                t, off = mix(i, f)
+                if off <= 28:
+                    pick = (f, t, edge_reach[i], halo + 2)
+        if pick is None:
+            if not out[i]:
+                rgba[o:o + 3] = px[k:k + 3]
+                rgba[o + 3] = 255
+            continue
+        f, t, r, limit = pick
+        a = max(0.0, min(1.0, t))
+        if out[i] and limit > 1:
+            # 빛이 끝에서 뚝 끊기지 않게, 마지막 세 칸은 옅게 잦아든다.
+            a *= min(1.0, (limit - r) / 3)
+        if a < .04:
+            continue
+        fk = f * 3
+        rgba[o:o + 3] = px[fk:fk + 3]
+        rgba[o + 3] = round(255 * a)
+    return rgba
+
+
+def cut_space(name, box, rgba, w, h):
+    """칸 안에서 남은 픽셀의 바깥 사각형으로 잘라 저장한다."""
+    left, top, right, bottom = box
+    x0 = y0 = 10 ** 9
+    x1 = y1 = -1
+    for y in range(top, bottom):
+        base = y * w
+        for x in range(left, right):
+            if rgba[(base + x) * 4 + 3]:
+                if x < x0: x0 = x
+                if x > x1: x1 = x
+                if y < y0: y0 = y
+                if y > y1: y1 = y
+    x0, y0, x1, y1 = x0 - 1, y0 - 1, x1 + 1, y1 + 1
+    ow, oh = x1 - x0 + 1, y1 - y0 + 1
+    rows = bytearray()
+    for y in range(y0, y1 + 1):
+        rows.append(0)
+        rows += rgba[(y * w + x0) * 4:(y * w + x1 + 1) * 4]
+    write_png(OUT / f"{name}.png", ow, oh, rows)
+    return f"{name}: {ow}x{oh} (원본 {x0},{y0})"
 
 
 def read_region(sheet, left, top, right, bottom):
@@ -651,7 +953,7 @@ def write_png(path, w, h, rows):
 def check_sheet():
     """잘린 자리를 눈으로 보려고 진한 배경에 올린 시트를 만든다."""
     SHEET.mkdir(parents=True, exist_ok=True)
-    for name in ARTS:
+    for name in list(ARTS) + list(SPACE_ARTS) + list(SPACE_ARTS2) + list(SPACE_ARTS3):
         subprocess.run(
             ["magick", str(OUT / f"{name}.png"), "-background", "#3aa0ff",
              "-layers", "flatten", "-scale", "250%",
@@ -664,5 +966,19 @@ if __name__ == "__main__":
     NIGHT.mkdir(parents=True, exist_ok=True)
     for name, art in ARTS.items():
         print(cut(name, art))
+    # 어두운 바탕에 그린 우주 고양이. 낮·밤 짝이 따로 없다 — 테두리가 이미
+    # 외곽선 색이라 어느 배경 위에서도 그대로 쓴다.
+    # 마지막 값은 장마다 다른 기준. 다섯 번째 장은 빛무리가 그림 안쪽 빈 바탕까지
+    # 스며 바탕과의 거리가 커서, 갇힌 빈 곳을 더 넉넉히 잡고 빛무리 폭을 좁힌다.
+    for sheet, bg, arts, opts in (
+            (SPACE_SHEET, SPACE_BG, SPACE_ARTS, {}),
+            (SPACE_SHEET2, SPACE_BG2, SPACE_ARTS2, {}),
+            (SPACE_SHEET3, SPACE_BG3, SPACE_ARTS3,
+             {"pocket": 34.0, "pocket_min": 40, "halo": 4})):
+        sw, sh, spx = read_space(sheet)
+        layer = space_layer(spx, sw, sh, bg, **opts)
+        for name, box in arts.items():
+            erase_navy(layer, spx, sw, SPACE_ERASE.get(name, []))
+            print(cut_space(name, box, layer, sw, sh))
     if "--check" in sys.argv:
         check_sheet()

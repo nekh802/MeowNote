@@ -941,7 +941,7 @@ class _PickerBox extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
         decoration: BoxDecoration(
-          color: bg.isDark ? bg.panel : Colors.white.withValues(alpha: .72),
+          color: bg.isDark ? bg.listPanel : Colors.white.withValues(alpha: .72),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: bg.panelEdge),
         ),
@@ -1148,7 +1148,7 @@ class _BoardChip extends StatelessWidget {
           vertical: _chipPadV,
         ),
         decoration: BoxDecoration(
-          color: selected ? p.bg : bg.panel,
+          color: selected ? p.bg : bg.listPanel,
           borderRadius: BorderRadius.circular(_chipRadius),
           border: Border.all(
             color: selected
@@ -1208,7 +1208,7 @@ class _AddBoardChip extends StatelessWidget {
             vertical: _chipPadV,
           ),
           decoration: BoxDecoration(
-            color: bg.panel,
+            color: bg.listPanel,
             borderRadius: BorderRadius.circular(_chipRadius),
             // 메모가 아니라 단추라는 것이 보이도록 이것만 색 테두리를 둔다.
             border: Border.all(
@@ -1450,7 +1450,9 @@ class _TopAction extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(9),
           decoration: BoxDecoration(
-            color: bg.isDark ? bg.panel : Colors.white.withValues(alpha: .7),
+            color: bg.isDark
+                ? bg.listPanel
+                : Colors.white.withValues(alpha: .7),
             shape: BoxShape.circle,
             border: bg.isDark ? Border.all(color: bg.panelEdge) : null,
           ),
@@ -1499,7 +1501,10 @@ class _BoardCardState extends State<_BoardCard> {
   @override
   Widget build(BuildContext context) {
     final board = widget.board;
-    final p = CardPalette.byKey(board.colorKey);
+    // 밤하늘 위에서는 카드가 불투명한 남색 박스가 된다. 목록의 블록은 반투명이다.
+    final night = widget.bg.isDark;
+    final base = CardPalette.byKey(board.colorKey);
+    final p = night ? base.onNight() : base;
     final badge = CardBadge.byKey(board.badgeKey);
     final cat = CatSpec.byId(board.catId);
     final touch =
@@ -1510,15 +1515,29 @@ class _BoardCardState extends State<_BoardCard> {
     final catOnRight = board.pose == CatPose.peekBottom;
     // 오른쪽 위에 걸터앉는 고양이는 카드 위에 덧그려져 제목 줄을 덮는다.
     // 그만큼 제목 줄을 좁혀 ⋯ 버튼이 고양이 왼쪽에 서게 한다.
+    // 우주 고양이는 키운 만큼 폭이 넓어, 실제로 그려지는 폭으로 셈한다. 옛 폭
+    // 그대로 두면 넓은 아이(별자리)가 ⋯ 버튼을 덮는다.
+    final peekTopWidth = _peekTopCat.width * OriginalArtwork.footprint(cat.id);
     final headGap = board.pose == CatPose.peekTop
-        ? _peekTopCat.width + _peekTopCat.right - 20
+        ? peekTopWidth + _peekTopCat.right - 20
         : 0.0;
-    final bottomGap = switch (board.pose) {
-      CatPose.peekTop => 60.0,
-      CatPose.none => 46.0,
-      CatPose.watermark => 108.0,
-      _ => 110.0,
-    };
+    // 우주 고양이는 온몸이 그려져 기존 고양이보다 키가 크다. 앉는 자리
+    // (오른쪽·왼쪽 아래)는 그 키만큼 바닥 여백을 늘려 글을 가리지 않게 한다.
+    // 기존 고양이는 이 값이 0 이라 여백이 그대로다.
+    final extra = OriginalArtwork.spaceCats.contains(board.catId)
+        ? switch (board.pose) {
+            CatPose.peekBottom || CatPose.peekLeft => 36.0,
+            _ => 0.0,
+          }
+        : 0.0;
+    final bottomGap =
+        switch (board.pose) {
+          CatPose.peekTop => 60.0,
+          CatPose.none => 46.0,
+          CatPose.watermark => 108.0,
+          _ => 110.0,
+        } +
+        extra;
     final minRules = board.pose == CatPose.watermark ? 2 : 4;
     // 고양이가 앉은 구석에는 발자국을 찍지 않는다. 겹쳐 그리면 발바닥이
     // 고양이 몸에 찍힌 것처럼 보인다.
@@ -1539,34 +1558,53 @@ class _BoardCardState extends State<_BoardCard> {
               child: Container(
                 constraints: const BoxConstraints(minHeight: 312),
                 decoration: BoxDecoration(
-                  // 밝은 배경 위에서는 비쳐 보이는 편이 곱지만, 밤하늘 위에서
-                  // 같은 투명도를 쓰면 남색이 배어 카드 색이 잿빛이 된다.
-                  color: p.bg.withValues(alpha: widget.bg.isDark ? .94 : .68),
+                  // 밝은 배경에서는 카드 색을 옅게 비쳐 깔고, 밤하늘에서는 하늘빛이
+                  // 도는 반투명한 남색에 카드 색을 살짝 섞는다. 아래 하늘과 별이 그대로
+                  // 비쳐 보인다.
+                  // 밤하늘에서는 뒤가 비치지 않는 불투명한 남색 박스다. 카드 색은 살짝만
+                  // 섞어 어느 카드인지 알아보게 한다.
+                  color: night
+                      ? Color.alphaBlend(
+                          p.ink.withValues(alpha: .06),
+                          BackgroundTheme.memoBox,
+                        )
+                      : p.bg.withValues(alpha: .68),
                   borderRadius: BorderRadius.circular(26),
+                  // 밤하늘에서는 카드 색의 밝은 짝으로 테두리를 두르고 은은한 빛을
+                  // 낸다 — 목록의 블록과 같다.
                   border: Border.all(
-                    color: Colors.white.withValues(
-                      alpha: widget.bg.isDark ? .32 : .7,
-                    ),
-                    width: 2,
+                    color: night
+                        ? p.ink.withValues(alpha: .30)
+                        : Colors.white.withValues(alpha: .7),
+                    width: night ? 1.5 : 2,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: .055),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
+                  boxShadow: night
+                      ? [
+                          BoxShadow(
+                            color: p.ink.withValues(alpha: .10),
+                            blurRadius: 22,
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: .055),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                 ),
                 child: Stack(
                   children: [
-                    // 모눈 질감
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _GridPainter(
-                          Colors.white.withValues(alpha: .19),
+                    // 모눈 질감. 밤하늘에서는 반투명한 박스 뒤로 별이 비치므로 격자를
+                    // 깔지 않는다 — 별 위에 격자가 겹치면 어수선하다.
+                    if (!night)
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: _GridPainter(
+                            Colors.white.withValues(alpha: .19),
+                          ),
                         ),
                       ),
-                    ),
                     if (board.pose == CatPose.watermark)
                       Positioned(
                         bottom: 0,
@@ -1576,6 +1614,9 @@ class _BoardCardState extends State<_BoardCard> {
                           child: CatFace(
                             spec: cat,
                             width: 224,
+                            // 우주 고양이는 다른 자리에서 1.5배로 키웠지만, 옅게 깔 때는
+                            // 카드에 넓게 놓여 글을 덮으니 2/3 로 도로 줄인다.
+                            scale: 2 / 3,
                             // 카드 글씨를 가리지 않게 절반만 비친다. 별이는
                             // 원본부터 수채로 옅게 그린 아이라 더 깎으면
                             // 아예 보이지 않는다.
@@ -2411,7 +2452,12 @@ class _CheckBox extends StatelessWidget {
           ),
         ),
         child: checked
-            ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
+            // 밤하늘에서는 강조색이 밝아 흰 체크가 묻힌다.
+            ? Icon(
+                Icons.check_rounded,
+                size: 16,
+                color: palette.night ? const Color(0xFF0A1730) : Colors.white,
+              )
             : null,
       ),
     );

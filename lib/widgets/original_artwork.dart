@@ -29,14 +29,73 @@ class OriginalArtwork extends StatelessWidget {
     'mongi' => const Rect.fromLTRB(274, 845, 509, 978),
     'dalrae' => const Rect.fromLTRB(722, 848, 971, 978),
     'danchu' => const Rect.fromLTRB(1302, 574, 1495, 733),
+    // 세 번째 장(남색 하늘의 우주 고양이). 원본이 아니라 오려 낸 그림의 크기를
+    // 그대로 적는다 — 가로세로 비율만 쓰인다.
+    'ujoo' => const Rect.fromLTRB(0, 0, 462, 414),
+    'byeoltong' => const Rect.fromLTRB(0, 0, 468, 439),
+    'dalbit' => const Rect.fromLTRB(0, 0, 460, 406),
+    'eunha' => const Rect.fromLTRB(0, 0, 466, 407),
+    'choco' => const Rect.fromLTRB(0, 0, 437, 433),
+    'pyeonji' => const Rect.fromLTRB(0, 0, 501, 414),
+    // 네 번째 장.
+    'cho' => const Rect.fromLTRB(0, 0, 464, 450),
+    'byeol2' => const Rect.fromLTRB(0, 0, 469, 432),
+    'usubu' => const Rect.fromLTRB(0, 0, 443, 430),
+    'got' => const Rect.fromLTRB(0, 0, 490, 415),
+    'rocket' => const Rect.fromLTRB(0, 0, 466, 405),
+    'byeoljari' => const Rect.fromLTRB(0, 0, 490, 374),
+    // 다섯 번째 장.
+    'nakksi' => const Rect.fromLTRB(0, 0, 473, 470),
+    'yuribyeong' => const Rect.fromLTRB(0, 0, 432, 395),
+    'wiseong' => const Rect.fromLTRB(0, 0, 500, 389),
+    'pungseon' => const Rect.fromLTRB(0, 0, 415, 481),
+    'haemak' => const Rect.fromLTRB(0, 0, 494, 382),
+    'byeolit' => const Rect.fromLTRB(0, 0, 496, 393),
     _ => const Rect.fromLTRB(316, 126, 500, 244),
   };
+
+  /// 남색 하늘에 그린 우주 고양이. 테두리를 외곽선 색으로 이미 칠해 두어 낮·밤
+  /// 짝이 따로 없다.
+  static const spaceCats = <String>{
+    'ujoo',
+    'byeoltong',
+    'dalbit',
+    'eunha',
+    'choco',
+    'pyeonji',
+    'cho',
+    'byeol2',
+    'usubu',
+    'got',
+    'rocket',
+    'byeoljari',
+    'nakksi',
+    'yuribyeong',
+    'wiseong',
+    'pungseon',
+    'haemak',
+    'byeolit',
+  };
+
+  /// 기존 고양이는 가슴 위만 그려 가로로 넓지만 우주 고양이는 온몸이라 통통하다.
+  /// 같은 폭으로 놓으면 카드 아래 칸(글 자리)을 넘어 글자를 가린다. 그래서 높이가
+  /// 기존 고양이와 같아지도록 폭을 줄인 값([_spaceFit])에, 그림이 작다는 말이 있어
+  /// 키운 배수([spaceScale])를 곱한다.
+  static const spaceScale = 1.5;
+
+  static double footprint(String art) {
+    if (!spaceCats.contains(art)) return 1;
+    final r = bounds(art);
+    // 기존 고양이의 높이/폭 비율은 0.62 안팎이다.
+    final fit = (.62 / (r.height / r.width)).clamp(.5, 1.0);
+    return fit * spaceScale;
+  }
 
   /// 오려 둔 그림 파일. 이름을 모르면 첫 고양이로 돌아간다. [night] 이면
   /// 테두리를 외곽선 색으로 이어 칠한 짝을 쓴다 — 남색 하늘 위에서 원본
   /// 종이 색이 하얀 띠로 뜨지 않는다.
   static String cutout(String art, {bool night = false}) =>
-      'assets/cutouts/${night ? 'night/' : ''}'
+      'assets/cutouts/${night && !spaceCats.contains(art) ? 'night/' : ''}'
       '${cutouts.contains(art) ? art : 'mochi'}.png';
 
   static const cutouts = <String>{
@@ -53,16 +112,18 @@ class OriginalArtwork extends StatelessWidget {
     'mongi',
     'dalrae',
     'danchu',
+    ...spaceCats,
   };
 
   @override
   Widget build(BuildContext context) {
     final rect = bounds(art);
+    final w = width * footprint(art);
     return ExcludeSemantics(
       child: Image.asset(
         cutout(art, night: NightArtwork.of(context)),
-        width: width,
-        height: width * rect.height / rect.width,
+        width: w,
+        height: w * rect.height / rect.width,
         fit: BoxFit.fill,
         filterQuality: FilterQuality.high,
       ),

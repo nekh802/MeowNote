@@ -12,7 +12,7 @@ class BottomBarSurface extends StatelessWidget {
     height: 50,
     padding: const EdgeInsets.symmetric(horizontal: 14),
     decoration: BoxDecoration(
-      color: bg.isDark ? bg.panel : Colors.white.withValues(alpha: .62),
+      color: bg.isDark ? bg.listPanel : Colors.white.withValues(alpha: .62),
       borderRadius: BorderRadius.circular(18),
       border: Border.all(color: bg.panelEdge),
     ),
