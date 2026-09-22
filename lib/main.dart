@@ -21,8 +21,9 @@ class MallangMemoApp extends StatelessWidget {
     return MaterialApp(
       title: 'Malang Cat',
       debugShowCheckedModeBanner: false,
-      locale: const Locale('ko'),
-      supportedLocales: const [Locale('ko'), Locale('en')],
+      // 기기 언어를 그대로 따른다. 한국어·영어·중국어 밖의 언어는 Flutter 가
+      // 첫 번째로 적어 둔 한국어로 내려온다.
+      supportedLocales: const [Locale('ko'), Locale('en'), Locale('zh')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

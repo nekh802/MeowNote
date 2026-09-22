@@ -52,7 +52,7 @@ void main() {
   testWidgets('손잡이를 오른쪽으로 끌면 커지고, 손을 뗄 때 한 번만 알린다', (tester) async {
     final done = <double>[];
     await tester.pumpWidget(host(fraction: .5, onResized: done.add));
-    final handle = find.bySemanticsLabel('크기 조절');
+    final handle = find.byKey(const Key('resizeHandle'));
     expect(handle, findsOneWidget);
 
     final g = await tester.startGesture(tester.getCenter(handle));
@@ -74,7 +74,7 @@ void main() {
       host(fraction: .5, onResized: (_) {}, scroll: scroll),
     );
     final g = await tester.startGesture(
-      tester.getCenter(find.bySemanticsLabel('크기 조절')),
+      tester.getCenter(find.byKey(const Key('resizeHandle'))),
     );
     await g.moveBy(const Offset(0, -120));
     await g.moveBy(const Offset(10, -120));
@@ -87,7 +87,7 @@ void main() {
     final done = <double>[];
     await tester.pumpWidget(host(fraction: .5, onResized: done.add));
     var g = await tester.startGesture(
-      tester.getCenter(find.bySemanticsLabel('크기 조절')),
+      tester.getCenter(find.byKey(const Key('resizeHandle'))),
     );
     await g.moveBy(const Offset(900, 0));
     await g.up();
@@ -96,7 +96,7 @@ void main() {
     expect(tester.getSize(find.byKey(const Key('media'))).width, 400);
 
     g = await tester.startGesture(
-      tester.getCenter(find.bySemanticsLabel('크기 조절')),
+      tester.getCenter(find.byKey(const Key('resizeHandle'))),
     );
     await g.moveBy(const Offset(-900, 0));
     await g.up();

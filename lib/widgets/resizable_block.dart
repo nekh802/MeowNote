@@ -1,6 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
+
 import '../models/attachment.dart';
 
 /// 손잡이를 끌어 가로 크기를 바꾸는 블록. 사진과 동영상이 메모 안에서 쓴다.
@@ -85,8 +87,9 @@ class _ResizableBlockState extends State<ResizableBlock> {
                     ),
                   },
                   child: Semantics(
-                    label: '크기 조절',
+                    label: tr(context, '크기 조절', en: 'Resize', zh: '调整大小'),
                     child: Container(
+                      key: const Key('resizeHandle'),
                       width: ResizableBlock.handleSize,
                       height: ResizableBlock.handleSize,
                       alignment: Alignment.center,

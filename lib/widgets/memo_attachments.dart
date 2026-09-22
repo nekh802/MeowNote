@@ -5,6 +5,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:video_player/video_player.dart';
 
 import '../data/memo_store.dart';
+import '../l10n.dart';
 import '../models/attachment.dart';
 import '../theme/palette.dart';
 import 'resizable_block.dart';
@@ -64,9 +65,11 @@ void _removeAttachment(BuildContext context, Attachment attachment) {
   store.setAttachmentDeleted(attachment, true);
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: const Text('첨부를 삭제했어요'),
+      content: Text(
+        tr(context, '첨부를 삭제했어요', en: 'Attachment removed', zh: '已删除附件'),
+      ),
       action: SnackBarAction(
-        label: '되돌리기',
+        label: tr(context, '되돌리기', en: 'Undo', zh: '撤销'),
         onPressed: () => store.setAttachmentDeleted(attachment, false),
       ),
     ),
@@ -79,16 +82,42 @@ Future<void> _openOutside(BuildContext context, Attachment attachment) async {
     final file = MemoStore.instance.attachmentFile(attachment);
     if (!await file.exists()) {
       if (context.mounted) {
-        _say(context, '첨부 파일을 찾을 수 없어요. 다시 첨부해 주세요.');
+        _say(
+          context,
+          tr(
+            context,
+            '첨부 파일을 찾을 수 없어요. 다시 첨부해 주세요.',
+            en: "Couldn't find the attached file. Please attach it again.",
+            zh: '找不到附件文件，请重新添加。',
+          ),
+        );
       }
       return;
     }
     final result = await OpenFilex.open(file.path);
     if (result.type != ResultType.done && context.mounted) {
-      _say(context, '이 파일을 열 수 있는 앱을 찾지 못했어요.');
+      _say(
+        context,
+        tr(
+          context,
+          '이 파일을 열 수 있는 앱을 찾지 못했어요.',
+          en: 'No app found to open this file.',
+          zh: '找不到可以打开此文件的应用。',
+        ),
+      );
     }
   } catch (_) {
-    if (context.mounted) _say(context, '파일을 열지 못했어요. 잠시 후 다시 시도해 주세요.');
+    if (context.mounted) {
+      _say(
+        context,
+        tr(
+          context,
+          '파일을 열지 못했어요. 잠시 후 다시 시도해 주세요.',
+          en: 'Could not open the file. Please try again shortly.',
+          zh: '无法打开文件，请稍后再试。',
+        ),
+      );
+    }
   }
 }
 
@@ -113,7 +142,14 @@ Future<void> _openPhoto(BuildContext context, Attachment attachment) {
               errorBuilder: (_, _, _) => TextButton.icon(
                 onPressed: () => _openOutside(context, attachment),
                 icon: const Icon(Icons.open_in_new),
-                label: const Text('다른 앱으로 열기'),
+                label: Text(
+                  tr(
+                    context,
+                    '다른 앱으로 열기',
+                    en: 'Open in another app',
+                    zh: '用其他应用打开',
+                  ),
+                ),
               ),
             ),
           ),
@@ -154,7 +190,12 @@ class _MediaBlock extends StatelessWidget {
               right: 4,
               child: _RoundAction(
                 icon: Icons.close_rounded,
-                label: '${attachment.name} 삭제',
+                label: tr(
+                  context,
+                  '${attachment.name} 삭제',
+                  en: 'Delete ${attachment.name}',
+                  zh: '删除${attachment.name}',
+                ),
                 onTap: () => _removeAttachment(context, attachment),
               ),
             ),
@@ -351,7 +392,12 @@ class _ClipState extends State<_Clip> {
                 bottom: 4,
                 child: _RoundAction(
                   icon: Icons.fullscreen_rounded,
-                  label: '${widget.attachment.name} 크게 보기',
+                  label: tr(
+                    context,
+                    '${widget.attachment.name} 크게 보기',
+                    en: 'View ${widget.attachment.name} full screen',
+                    zh: '全屏查看${widget.attachment.name}',
+                  ),
                   onTap: () => _openOutside(context, widget.attachment),
                 ),
               ),
@@ -412,7 +458,12 @@ class _FileCard extends StatelessWidget {
               ),
             ),
             IconButton(
-              tooltip: '${attachment.name} 첨부 삭제',
+              tooltip: tr(
+                context,
+                '${attachment.name} 첨부 삭제',
+                en: 'Remove ${attachment.name}',
+                zh: '移除附件${attachment.name}',
+              ),
               onPressed: () => _removeAttachment(context, attachment),
               icon: Icon(Icons.close_rounded, size: 18, color: ink),
             ),
@@ -488,11 +539,23 @@ class _MemoAttachmentBarState extends State<MemoAttachmentBar> {
         added++;
       }
     } catch (_) {
-      _message(
-        added == 0
-            ? '첨부하지 못했어요. 파일을 다시 선택해 주세요.'
-            : '$added개를 첨부했어요. 나머지 파일은 다시 선택해 주세요.',
-      );
+      if (mounted) {
+        _message(
+          added == 0
+              ? tr(
+                  context,
+                  '첨부하지 못했어요. 파일을 다시 선택해 주세요.',
+                  en: 'Could not attach. Please choose the files again.',
+                  zh: '添加失败，请重新选择文件。',
+                )
+              : tr(
+                  context,
+                  '$added개를 첨부했어요. 나머지 파일은 다시 선택해 주세요.',
+                  en: 'Attached $added. Please choose the rest again.',
+                  zh: '已添加 $added 个，请重新选择其余文件。',
+                ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -513,7 +576,8 @@ class _MemoAttachmentBarState extends State<MemoAttachmentBar> {
                 : Colors.white.withValues(alpha: .65),
             shape: const CircleBorder(),
             // 바 높이(50)에 여백이 넉넉히 남도록. 목록 검색칸의 안쪽과 같은 인상.
-            fixedSize: const Size(36, 36),
+            // 지금 크기(36)의 80%.
+            fixedSize: const Size(28.8, 28.8),
           ),
           icon: Icon(icon, size: 19),
         );
@@ -534,14 +598,22 @@ class _MemoAttachmentBarState extends State<MemoAttachmentBar> {
           else
             action(
               Icons.photo_library_outlined,
-              '사진·동영상 첨부',
+              tr(context, '사진·동영상 첨부', en: 'Add photo or video', zh: '添加照片/视频'),
               () => _pick(FileType.media),
             ),
-          action(Icons.attach_file_rounded, '파일 첨부', () => _pick(FileType.any)),
-          action(Icons.delete_outline_rounded, '메모 삭제', () {
-            FocusManager.instance.primaryFocus?.unfocus();
-            widget.onDelete();
-          }),
+          action(
+            Icons.attach_file_rounded,
+            tr(context, '파일 첨부', en: 'Add file', zh: '添加文件'),
+            () => _pick(FileType.any),
+          ),
+          action(
+            Icons.delete_outline_rounded,
+            tr(context, '메모 삭제', en: 'Delete memo', zh: '删除备忘录'),
+            () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              widget.onDelete();
+            },
+          ),
         ],
       ),
     );

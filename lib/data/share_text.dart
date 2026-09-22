@@ -2,17 +2,18 @@ import 'dart:io';
 
 import 'package:share_plus/share_plus.dart';
 
+import '../l10n.dart';
 import '../models/attachment.dart';
 import '../models/memo.dart';
 import 'when.dart';
 
 /// 첨부를 글 사이에 남기는 한 줄. 파일 자체는 공유 창에 따로 실려 가므로,
 /// 여기서는 어느 줄 아래에 있던 것인지만 알린다.
-String attachmentLine(Attachment a) {
+String attachmentLine(Attachment a, [AppLocale locale = AppLocale.ko]) {
   final label = switch (a.kind) {
-    'image' => '사진',
-    'video' => '동영상',
-    _ => '파일',
+    'image' => trLocale(locale, '사진', en: 'Photo', zh: '照片'),
+    'video' => trLocale(locale, '동영상', en: 'Video', zh: '视频'),
+    _ => trLocale(locale, '파일', en: 'File', zh: '文件'),
   };
   return '[$label] ${a.name}';
 }
@@ -27,10 +28,13 @@ String boardAsText(
   Board board,
   List<Entry> entries, {
   List<Attachment> attachments = const [],
+  AppLocale locale = AppLocale.ko,
 }) {
   final buf = StringBuffer(board.title);
   if (board.subtitle.isNotEmpty) buf.write('\n${board.subtitle}');
-  buf.write('\n${ymdhm(board.createdAt)}에 시작한 메모');
+  buf.write(
+    '\n${trLocale(locale, '${ymdhm(board.createdAt, locale)}에 시작한 메모', en: 'Started ${ymdhm(board.createdAt, locale)}', zh: '${ymdhm(board.createdAt, locale)} 开始的备忘录')}',
+  );
 
   final live = entries.map((e) => e.id).toSet();
   final atEnd = attachments
@@ -38,7 +42,9 @@ String boardAsText(
       .toList();
   final written = entries.where((e) => e.text.trim().isNotEmpty).toList();
   if (written.isEmpty && attachments.isEmpty) {
-    buf.write('\n\n(아직 적은 것이 없어요)');
+    buf.write(
+      '\n\n(${trLocale(locale, '아직 적은 것이 없어요', en: 'Nothing written yet', zh: '还没有写下任何内容')})',
+    );
     return buf.toString();
   }
   buf.write('\n');
@@ -52,11 +58,11 @@ String boardAsText(
       buf.write('\n$bullet ${e.text.trim()}');
     }
     for (final a in attachments.where((a) => a.afterEntryId == e.id)) {
-      buf.write('\n  ${attachmentLine(a)}');
+      buf.write('\n  ${attachmentLine(a, locale)}');
     }
   }
   for (final a in atEnd) {
-    buf.write('\n${attachmentLine(a)}');
+    buf.write('\n${attachmentLine(a, locale)}');
   }
   return buf.toString();
 }
@@ -118,13 +124,19 @@ Future<void> shareBoard(
   List<Entry> entries, {
   List<Attachment> attachments = const [],
   File Function(Attachment)? fileOf,
+  AppLocale locale = AppLocale.ko,
 }) {
   final sent = fileOf == null
       ? (files: <XFile>[], names: <String>[])
       : shareFilesOf(attachments, fileOf);
   return SharePlus.instance.share(
     ShareParams(
-      text: boardAsText(board, entries, attachments: attachments),
+      text: boardAsText(
+        board,
+        entries,
+        attachments: attachments,
+        locale: locale,
+      ),
       subject: board.title,
       files: sent.files.isEmpty ? null : sent.files,
       fileNameOverrides: sent.files.isEmpty ? null : sent.names,
@@ -141,10 +153,15 @@ String allBoardsAsText(
   List<Board> boards,
   List<Entry> Function(String boardId) entriesOf, {
   List<Attachment> Function(String boardId)? attachmentsOf,
+  AppLocale locale = AppLocale.ko,
 }) {
-  final buf = StringBuffer('말랑 고양이 메모')
-    ..write('\n${ymdhm(DateTime.now())} 내보냄')
-    ..write('\n메모 ${boards.length}장');
+  final buf = StringBuffer(trLocale(locale, '말랑 고양이 메모', en: 'Malang Cat', zh: '猫咪备忘录'))
+    ..write(
+      '\n${trLocale(locale, '${ymdhm(DateTime.now(), locale)} 내보냄', en: 'Exported ${ymdhm(DateTime.now(), locale)}', zh: '${ymdhm(DateTime.now(), locale)} 导出')}',
+    )
+    ..write(
+      '\n${trLocale(locale, '메모 ${boards.length}장', en: '${boards.length} memos', zh: '${boards.length} 篇备忘录')}',
+    );
   for (final board in boards) {
     buf.write('\n\n────────\n');
     buf.write(
@@ -152,6 +169,7 @@ String allBoardsAsText(
         board,
         entriesOf(board.id),
         attachments: attachmentsOf?.call(board.id) ?? const [],
+        locale: locale,
       ),
     );
   }
@@ -163,6 +181,7 @@ Future<void> shareAllBoards(
   List<Entry> Function(String boardId) entriesOf, {
   List<Attachment> Function(String boardId)? attachmentsOf,
   File Function(Attachment)? fileOf,
+  AppLocale locale = AppLocale.ko,
 }) {
   final all = <Attachment>[
     if (attachmentsOf != null)
@@ -173,8 +192,13 @@ Future<void> shareAllBoards(
       : shareFilesOf(all, fileOf);
   return SharePlus.instance.share(
     ShareParams(
-      text: allBoardsAsText(boards, entriesOf, attachmentsOf: attachmentsOf),
-      subject: '말랑 고양이 메모',
+      text: allBoardsAsText(
+        boards,
+        entriesOf,
+        attachmentsOf: attachmentsOf,
+        locale: locale,
+      ),
+      subject: trLocale(locale, '말랑 고양이 메모', en: 'Malang Cat', zh: '猫咪备忘录'),
       files: sent.files.isEmpty ? null : sent.files,
       fileNameOverrides: sent.files.isEmpty ? null : sent.names,
     ),

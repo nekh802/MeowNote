@@ -1,5 +1,6 @@
 import '../widgets/bottom_bar_surface.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/gestures.dart' show TapGestureRecognizer;
@@ -14,6 +15,7 @@ import '../data/memo_store.dart';
 import '../data/share_text.dart';
 import '../data/when.dart';
 import '../data/widget_feed.dart';
+import '../l10n.dart';
 import '../models/memo.dart';
 import '../theme/palette.dart';
 import '../widgets/cat_face.dart';
@@ -224,13 +226,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// 새 메모 한 장. 색과 고양이는 돌아가며 골라 카드마다 다른 얼굴이
-  /// 되게 한다. 놓자마자 그 메모를 펼친다.
+  /// 새로 놓을 색을 고르는 씨앗. 밤하늘에서 남색이 섞여 들어갈 때 무작위로
+  /// 고르는 데 쓴다. 시험에서 값을 못박아 둘 수 있게 필드로 둔다.
+  final _colorPick = math.Random();
+
+  /// 새 메모 한 장. 고양이는 배경과 상관없이 우주 고양이 열여덟 마리 중에서
+  /// 무작위로 받는다. 색은 밝은 배경에서 밝은 일곱 색을 돌아가며 받고, 밤하늘에서는
+  /// 거기에 남색을 더한 여덟 색 중 하나를 무작위로 받는다. 놓자마자 그 메모를 펼친다.
   void _addBoard() {
     final n = _store.boards.length;
+    final night = _store.backgroundKey == 'night';
+    final colorKey = night
+        ? CardPalette.all[_colorPick.nextInt(CardPalette.all.length)].key
+        : CardPalette.pastels[n % CardPalette.pastels.length].key;
+    final catId =
+        CatSpec.spaceCats[_colorPick.nextInt(CatSpec.spaceCats.length)].id;
     final board = _store.addBoard(
-      colorKey: CardPalette.all[n % CardPalette.all.length].key,
-      catId: CatSpec.all[n % CatSpec.all.length].id,
+      colorKey: colorKey,
+      catId: catId,
+      title: tr(context, '새 메모', en: 'New Memo', zh: '新建备忘录'),
     );
     _pickBoard(board);
   }
@@ -290,12 +304,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _store.entriesOf(board.id),
         attachments: _store.attachmentsOf(board.id),
         fileOf: _store.attachmentFile,
+        locale: localeOf(context),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('내보내기에 실패했어요: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            tr(
+              context,
+              '내보내기에 실패했어요: $e',
+              en: 'Export failed: $e',
+              zh: '导出失败：$e',
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -327,16 +351,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final go = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('새 버전이 나왔어요.', style: _round(19, const Color(0xFF6B4F52))),
-        content: const Text('앱스토어에서 말랑 고양이 메모를 최신 버전으로 업데이트 해주세요.'),
+        title: Text(
+          tr(
+            context,
+            '새 버전이 나왔어요.',
+            en: 'A new version is here.',
+            zh: '有新版本了。',
+          ),
+          style: _round(19, const Color(0xFF6B4F52)),
+        ),
+        content: Text(
+          tr(
+            context,
+            '앱스토어에서 말랑 고양이 메모를 최신 버전으로 업데이트 해주세요.',
+            en: 'Please update Malang Cat to the latest version on the App Store.',
+            zh: '请在 App Store 中将猫咪备忘录更新到最新版本。',
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('나중에'),
+            child: Text(tr(context, '나중에', en: 'Later', zh: '稍后')),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('앱스토어 열기'),
+            child: Text(
+              tr(context, '앱스토어 열기', en: 'Open App Store', zh: '打开 App Store'),
+            ),
           ),
         ],
       ),
@@ -361,20 +402,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       backgroundColor: Colors.transparent,
       builder: (_) => StatefulBuilder(
         builder: (context, setSheet) => _Sheet(
-          title: '더보기',
+          title: tr(context, '더보기', en: 'More', zh: '更多'),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const _SheetLabel('정렬하기'),
+              _SheetLabel(tr(context, '정렬하기', en: 'Sort by', zh: '排序方式')),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  for (final entry in const {
-                    BoardSort.edited: '편집일',
-                    BoardSort.created: '생성일',
-                    BoardSort.name: '가나다·ABC',
+                  for (final entry in {
+                    BoardSort.edited: tr(
+                      context,
+                      '편집일',
+                      en: 'Edited',
+                      zh: '编辑日期',
+                    ),
+                    BoardSort.created: tr(
+                      context,
+                      '생성일',
+                      en: 'Created',
+                      zh: '创建日期',
+                    ),
+                    BoardSort.name: tr(
+                      context,
+                      '가나다·ABC',
+                      en: 'ABC',
+                      zh: '名称',
+                    ),
                   }.entries)
                     _PickBox(
                       label: entry.value,
@@ -384,7 +440,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
               const SizedBox(height: 22),
-              const _SheetLabel('정리하기'),
+              _SheetLabel(tr(context, '정리하기', en: 'Organize', zh: '整理')),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const SizedBox.square(
@@ -398,9 +454,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 // 앱 이름과 같은 둥근 서체로 적는다.
-                title: Text('메모 지우기', style: _round(16, _pickInk)),
+                title: Text(
+                  tr(context, '메모 지우기', en: 'Delete memos', zh: '删除备忘录'),
+                  style: _round(16, _pickInk),
+                ),
                 subtitle: Text(
-                  '여러 장을 골라 한 번에',
+                  tr(
+                    context,
+                    '여러 장을 골라 한 번에',
+                    en: 'Choose several at once',
+                    zh: '一次选择多篇',
+                  ),
                   style: _round(13, _pickInk.withValues(alpha: .7)),
                 ),
                 onTap: () {
@@ -417,7 +481,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: Icon(Icons.title_rounded, size: 24, color: _pickInk),
                   ),
                 ),
-                title: Text('폰트 변경하기', style: _round(16, _pickInk)),
+                title: Text(
+                  tr(context, '폰트 변경하기', en: 'Change font', zh: '更改字体'),
+                  style: _round(16, _pickInk),
+                ),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () {
                   Navigator.of(context).pop();
@@ -441,7 +508,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         animation: _store,
         builder: (context, _) => SingleChildScrollView(
           child: _Sheet(
-            title: '폰트 변경하기',
+            title: tr(context, '폰트 변경하기', en: 'Change font', zh: '更改字体'),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -462,7 +529,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             ? AppTone.picked
                             : null,
                         title: Text(
-                          option.value,
+                          switch (option.key) {
+                            'gamja' => tr(
+                              context,
+                              '감자꽃체',
+                              en: 'Gamja Flower',
+                              zh: '土豆花体',
+                            ),
+                            'jua' => tr(context, '주아체', en: 'Jua', zh: '珠亚体'),
+                            _ => tr(
+                              context,
+                              '기본 제공 폰트',
+                              en: 'System font',
+                              zh: '系统字体',
+                            ),
+                          },
                           style: TextStyle(
                             fontFamily: option.key == 'system'
                                 ? null
@@ -473,7 +554,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           ),
                         ),
                         subtitle: Text(
-                          '말랑 고양이 메모 · 오늘의 기분',
+                          tr(
+                            context,
+                            '말랑 고양이 메모 · 오늘의 기분',
+                            en: "Malang Cat · Today's Mood",
+                            zh: '猫咪备忘录 · 今日心情',
+                          ),
                           style: TextStyle(
                             fontFamily: option.key == 'system'
                                 ? null
@@ -497,7 +583,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   alignment: Alignment.centerRight,
                   child: FilledButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('완료'),
+                    child: Text(tr(context, '완료', en: 'Done', zh: '完成')),
                   ),
                 ),
               ],
@@ -526,9 +612,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("'${board.title}' 을(를) 지웠어요"),
+        content: Text(
+          tr(
+            context,
+            "'${board.title}' 을(를) 지웠어요",
+            en: "Deleted '${board.title}'",
+            zh: '已删除"${board.title}"',
+          ),
+        ),
         action: SnackBarAction(
-          label: '되돌리기',
+          label: tr(context, '되돌리기', en: 'Undo', zh: '撤销'),
           onPressed: () => setState(() {
             _store.restoreBoards([board.id]);
             _selectedBoardId = board.id;
@@ -549,12 +642,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _store.entriesOf,
         attachmentsOf: _store.attachmentsOf,
         fileOf: _store.attachmentFile,
+        locale: localeOf(context),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('보내지 못했어요: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            tr(
+              context,
+              '보내지 못했어요: $e',
+              en: 'Could not send: $e',
+              zh: '发送失败：$e',
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -569,12 +672,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (sheet) => StatefulBuilder(
         builder: (context, setSheet) => SingleChildScrollView(
           child: _Sheet(
-            title: '메모 지우기',
+            title: tr(context, '메모 지우기', en: 'Delete memos', zh: '删除备忘录'),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const _SheetLabel('지울 메모를 고르세요'),
+                _SheetLabel(
+                  tr(
+                    context,
+                    '지울 메모를 고르세요',
+                    en: 'Choose memos to delete',
+                    zh: '选择要删除的备忘录',
+                  ),
+                ),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -612,7 +722,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ? null
                         : () => Navigator.of(sheet).pop(picked.length),
                     child: Text(
-                      picked.isEmpty ? '지우기' : '${picked.length}장 지우기',
+                      picked.isEmpty
+                          ? tr(context, '지우기', en: 'Delete', zh: '删除')
+                          : tr(
+                              context,
+                              '${picked.length}장 지우기',
+                              en: 'Delete ${picked.length}',
+                              zh: '删除 ${picked.length} 篇',
+                            ),
                     ),
                   ),
                 ),
@@ -631,9 +748,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     });
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('메모 $gone장을 지웠어요')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          tr(
+            context,
+            '메모 $gone장을 지웠어요',
+            en: 'Deleted $gone memos',
+            zh: '已删除 $gone 篇备忘录',
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openBackgroundSheet() async {
@@ -642,7 +768,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       backgroundColor: Colors.transparent,
       builder: (_) => StatefulBuilder(
         builder: (context, setSheet) => _Sheet(
-          title: '배경 고르기',
+          title: tr(context, '배경 고르기', en: 'Choose background', zh: '选择背景'),
           child: Wrap(
             spacing: 12,
             runSpacing: 12,
@@ -724,16 +850,19 @@ class _LibraryPageState extends State<_LibraryPage>
   /// 때는 '오늘·어제·이전 7일·이전 30일'로 묶는다.
   List<(String, List<Board>)> _sections(List<Board> pinned, List<Board> loose) {
     final out = <(String, List<Board>)>[];
-    if (pinned.isNotEmpty) out.add(('고정된 메모', pinned));
+    if (pinned.isNotEmpty) {
+      out.add((tr(context, '고정된 메모', en: 'Pinned', zh: '已置顶'), pinned));
+    }
     if (loose.isEmpty) return out;
     if (widget.sort == BoardSort.name) {
-      out.add((pinned.isEmpty ? '모든 메모' : '모든 메모', loose));
+      out.add((tr(context, '모든 메모', en: 'All memos', zh: '所有备忘录'), loose));
       return out;
     }
+    final locale = localeOf(context);
     final byWhen = <String, List<Board>>{};
     for (final b in loose) {
       final at = widget.sort == BoardSort.created ? b.createdAt : b.updatedAt;
-      byWhen.putIfAbsent(whenGroup(at), () => []).add(b);
+      byWhen.putIfAbsent(whenGroup(at, locale: locale), () => []).add(b);
     }
     // 카드는 이미 줄 세워 들어오므로 묶음도 그 차례 그대로 나온다.
     out.addAll(byWhen.entries.map((e) => (e.key, e.value)));
@@ -805,7 +934,14 @@ class _LibraryPageState extends State<_LibraryPage>
                             group.$1,
                             bg: bg,
                             // 붙박는 법은 맨 위 묶음 곁에 한 번만 귀띔한다.
-                            hint: i == 0 ? '메모를 길게 누르면 고정할 수 있어요' : null,
+                            hint: i == 0
+                                ? tr(
+                                    context,
+                                    '메모를 길게 누르면 고정할 수 있어요',
+                                    en: 'Press and hold a memo to pin it',
+                                    zh: '长按备忘录即可置顶',
+                                  )
+                                : null,
                           ),
                           _BoardChips(
                             bg: bg,
@@ -821,7 +957,12 @@ class _LibraryPageState extends State<_LibraryPage>
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             child: Text(
-                              '찾는 메모가 없어요',
+                              tr(
+                                context,
+                                '찾는 메모가 없어요',
+                                en: 'No memos found',
+                                zh: '没有找到备忘录',
+                              ),
                               style: TextStyle(
                                 fontSize: _listSize(12),
                                 color: bg.onBackgroundMuted,
@@ -888,7 +1029,7 @@ class _SearchBox extends StatelessWidget {
                 isDense: true,
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 13),
-                hintText: '메모 찾기',
+                hintText: tr(context, '메모 찾기', en: 'Search memos', zh: '搜索备忘录'),
                 hintStyle: TextStyle(
                   fontSize: _listSize(14),
                   color: ink.withValues(alpha: .4),
@@ -951,7 +1092,7 @@ class _PickerBox extends StatelessWidget {
               child: Text(
                 // 앱 이름을 여기에 못 박는다. 어느 메모를 펼쳐 두었는지는
                 // 아래 블록의 체크 표시가 알려 준다.
-                '말랑 고양이 메모',
+                tr(context, '말랑 고양이 메모', en: 'Malang Cat', zh: '猫咪备忘录'),
                 style: _round(
                   _listSize(MemoStore.instance.fontKey == 'gamja' ? 19 : 18),
                   p?.inkOn(bg.isDark) ?? bg.onBackground,
@@ -1134,10 +1275,13 @@ class _BoardChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = CardPalette.byKey(board.colorKey);
-    // 고른 블록은 어느 배경에서나 카드 바탕색을 그대로 입는다. 고르지 않은
-    // 블록은 밤하늘에서 카드 색의 밝은 짝으로 글씨를 쓰고, 같은 색의 옅은
-    // 빛테를 둘러 어느 메모인지 색만으로 알아본다.
-    final ink = selected ? p.ink : p.inkOn(bg.isDark);
+    // 밝은 배경에서 고른 블록은 카드 바탕색을 그대로 입는다. 밤하늘에서는 고른
+    // 블록도 그 색을 50% 로 깔아 뒤의 하늘이 비치고, 글씨는 카드 색의 밝은 짝을 쓴다.
+    // 고르지 않은 블록은 남색 반투명 바탕에 같은 색의 옅은 빛테를 둘러 어느
+    // 메모인지 색만으로 알아본다.
+    // 밝은 배경: 고른 블록은 카드 글자색, 나머지는 밝은 짝(밝은 배경에서는 같은 색).
+    // 밤하늘: 모두 밝은 짝.
+    final ink = bg.isDark || !selected ? p.inkOn(bg.isDark) : p.ink;
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -1148,13 +1292,15 @@ class _BoardChip extends StatelessWidget {
           vertical: _chipPadV,
         ),
         decoration: BoxDecoration(
-          color: selected ? p.bg : bg.listPanel,
+          color: selected
+              ? p.bg.withValues(alpha: bg.isDark ? .5 : 1)
+              : bg.listPanel,
           borderRadius: BorderRadius.circular(_chipRadius),
           border: Border.all(
-            color: selected
+            color: bg.isDark
+                ? ink.withValues(alpha: selected ? .55 : .28)
+                : selected
                 ? p.bg
-                : bg.isDark
-                ? ink.withValues(alpha: .28)
                 : _chipEdgeColor,
             width: _chipEdge,
           ),
@@ -1198,7 +1344,7 @@ class _AddBoardChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final edge = Theme.of(context).colorScheme.primary;
     return Tooltip(
-      message: '새 메모',
+      message: tr(context, '새 메모', en: 'New memo', zh: '新建备忘录'),
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
@@ -1271,7 +1417,7 @@ class _MemoPage extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: IconButton(
               onPressed: onBack,
-              tooltip: '목록',
+              tooltip: tr(context, '목록', en: 'List', zh: '列表'),
               icon: const Icon(Icons.chevron_left_rounded, size: 26),
               color: bg.onBackground.withValues(alpha: .75),
             ),
@@ -1355,7 +1501,12 @@ class _Header extends StatelessWidget {
               child: Transform.rotate(
                 angle: -.05,
                 child: _CornerNote(
-                  '좋은 생각이\n가득하길 ♡',
+                  tr(
+                    context,
+                    '좋은 생각이\n가득하길 ♡',
+                    en: 'Wishing you\nbright ideas ♡',
+                    zh: '愿好想法\n源源不断 ♡',
+                  ),
                   bg: bg,
                   align: TextAlign.right,
                 ),
@@ -1367,7 +1518,12 @@ class _Header extends StatelessWidget {
               child: Transform.rotate(
                 angle: .04,
                 child: _CornerNote(
-                  '작은 하루도\n소중해요 ♡',
+                  tr(
+                    context,
+                    '작은 하루도\n소중해요 ♡',
+                    en: 'Every small day\nmatters ♡',
+                    zh: '平凡的一天\n也很珍贵 ♡',
+                  ),
                   bg: bg,
                   align: TextAlign.left,
                 ),
@@ -1381,21 +1537,26 @@ class _Header extends StatelessWidget {
               children: [
                 _TopAction(
                   icon: Icons.palette_outlined,
-                  tooltip: '배경 바꾸기',
+                  tooltip: tr(
+                    context,
+                    '배경 바꾸기',
+                    en: 'Change background',
+                    zh: '更换背景',
+                  ),
                   bg: bg,
                   onTap: onPickBackground,
                 ),
                 const SizedBox(width: 6),
                 _TopAction(
                   icon: Icons.ios_share,
-                  tooltip: '전체 내보내기',
+                  tooltip: tr(context, '전체 내보내기', en: 'Export all', zh: '导出全部'),
                   bg: bg,
                   onTap: onExport,
                 ),
                 const SizedBox(width: 6),
                 _TopAction(
                   icon: Icons.more_horiz_rounded,
-                  tooltip: '더보기',
+                  tooltip: tr(context, '더보기', en: 'More', zh: '更多'),
                   bg: bg,
                   onTap: onSort,
                 ),
@@ -1501,7 +1662,7 @@ class _BoardCardState extends State<_BoardCard> {
   @override
   Widget build(BuildContext context) {
     final board = widget.board;
-    // 밤하늘 위에서는 카드가 불투명한 남색 박스가 된다. 목록의 블록은 반투명이다.
+    // 밤하늘에서는 고른 카드 색을 50% 로 깔고, 그 위 글자는 밝은 짝으로 쓴다.
     final night = widget.bg.isDark;
     final base = CardPalette.byKey(board.colorKey);
     final p = night ? base.onNight() : base;
@@ -1542,9 +1703,7 @@ class _BoardCardState extends State<_BoardCard> {
     // 고양이가 앉은 구석에는 발자국을 찍지 않는다. 겹쳐 그리면 발바닥이
     // 고양이 몸에 찍힌 것처럼 보인다.
     final showPaw =
-        board.pose != CatPose.peekLeft &&
-        board.pose != CatPose.peekBottom &&
-        board.pose != CatPose.trio;
+        board.pose != CatPose.peekLeft && board.pose != CatPose.peekBottom;
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -1554,57 +1713,54 @@ class _BoardCardState extends State<_BoardCard> {
           ClipRRect(
             borderRadius: BorderRadius.circular(26),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              // 밤하늘에서는 카드 뒤의 별이 또렷이 비쳐야 하니 흐리지 않는다. 밝은
+              // 배경에서는 종전처럼 살짝 흐려 뒤 무늬가 글씨를 방해하지 않게 한다.
+              filter: night
+                  ? ImageFilter.blur(sigmaX: 0, sigmaY: 0)
+                  : ImageFilter.blur(sigmaX: 12, sigmaY: 12),
               child: Container(
                 constraints: const BoxConstraints(minHeight: 312),
                 decoration: BoxDecoration(
-                  // 밝은 배경에서는 카드 색을 옅게 비쳐 깔고, 밤하늘에서는 하늘빛이
-                  // 도는 반투명한 남색에 카드 색을 살짝 섞는다. 아래 하늘과 별이 그대로
-                  // 비쳐 보인다.
-                  // 밤하늘에서는 뒤가 비치지 않는 불투명한 남색 박스다. 카드 색은 살짝만
-                  // 섞어 어느 카드인지 알아보게 한다.
-                  color: night
-                      ? Color.alphaBlend(
-                          p.ink.withValues(alpha: .06),
-                          BackgroundTheme.memoBox,
-                        )
-                      : p.bg.withValues(alpha: .68),
+                  // 밝은 배경에서는 카드 색을 옅게(68%) 비쳐 깔고, 밤하늘에서는 50% 로
+                  // 깔아 뒤의 하늘과 별이 비친다.
+                  color: p.dark
+                      ? (night
+                            // 밤하늘에서는 하늘빛이 도는 반투명한 남색 박스다.
+                            ? Color.alphaBlend(
+                                p.ink.withValues(alpha: .07),
+                                widget.bg.listPanel,
+                              )
+                            // 밝은 배경에서는 짙은 남색을 거의 그대로 깔아 또렷하다.
+                            : p.bg.withValues(alpha: .94))
+                      : p.bg.withValues(alpha: night ? .5 : .68),
                   borderRadius: BorderRadius.circular(26),
-                  // 밤하늘에서는 카드 색의 밝은 짝으로 테두리를 두르고 은은한 빛을
-                  // 낸다 — 목록의 블록과 같다.
                   border: Border.all(
-                    color: night
+                    color: p.dark && night
                         ? p.ink.withValues(alpha: .30)
-                        : Colors.white.withValues(alpha: .7),
-                    width: night ? 1.5 : 2,
+                        : Colors.white.withValues(alpha: night ? .55 : .7),
+                    width: p.dark && night ? 1.5 : 2,
                   ),
-                  boxShadow: night
-                      ? [
-                          BoxShadow(
-                            color: p.ink.withValues(alpha: .10),
-                            blurRadius: 22,
-                          ),
-                        ]
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: .055),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: night
+                          ? Colors.black.withValues(alpha: .35)
+                          : Colors.black.withValues(alpha: .055),
+                      blurRadius: night ? 18 : 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
                 child: Stack(
                   children: [
-                    // 모눈 질감. 밤하늘에서는 반투명한 박스 뒤로 별이 비치므로 격자를
-                    // 깔지 않는다 — 별 위에 격자가 겹치면 어수선하다.
-                    if (!night)
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: _GridPainter(
-                            Colors.white.withValues(alpha: .19),
-                          ),
+                    // 모눈 질감. 밤하늘의 반투명 카드는 하늘이 비쳐 격자와 겹치니, 그때는
+                    // 선을 낮보다 옅게 그려 별과 겹쳐도 어수선하지 않게 한다.
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _GridPainter(
+                          Colors.white.withValues(alpha: night ? .10 : .19),
                         ),
                       ),
+                    ),
                     if (board.pose == CatPose.watermark)
                       Positioned(
                         bottom: 0,
@@ -1637,18 +1793,6 @@ class _BoardCardState extends State<_BoardCard> {
                         bottom: 0,
                         child: CatFace(spec: cat, width: 148),
                       ),
-                    if (board.pose == CatPose.trio)
-                      const Positioned(
-                        left: 4,
-                        right: 4,
-                        bottom: 0,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.bottomCenter,
-                          child: OriginalArtwork(art: 'trio', width: 330),
-                        ),
-                      ),
-
                     // 본문
                     Padding(
                       padding: EdgeInsets.fromLTRB(22, 18, 20, bottomGap),
@@ -1698,14 +1842,24 @@ class _BoardCardState extends State<_BoardCard> {
                                     children: [
                                       _CardAction(
                                         icon: Icons.ios_share,
-                                        tooltip: '이 카드 내보내기',
+                                        tooltip: tr(
+                                          context,
+                                          '이 카드 내보내기',
+                                          en: 'Export this card',
+                                          zh: '导出此卡片',
+                                        ),
                                         ink: p.ink,
                                         onTap: widget.onExport,
                                       ),
                                       const SizedBox(width: 2),
                                       _CardAction(
                                         icon: Icons.more_horiz_rounded,
-                                        tooltip: '카드 꾸미기',
+                                        tooltip: tr(
+                                          context,
+                                          '카드 꾸미기',
+                                          en: 'Decorate card',
+                                          zh: '装饰卡片',
+                                        ),
                                         ink: p.ink,
                                         onTap: widget.onOpenSettings,
                                       ),
@@ -1732,10 +1886,15 @@ class _BoardCardState extends State<_BoardCard> {
                           // 이 카드를 처음 편 날. 지워도 되는 장식이 아니라
                           // 카드가 늘 지니고 있는 값이다.
                           Text(
-                            '${ymd(board.createdAt)} 시작',
+                            tr(
+                              context,
+                              '${ymd(board.createdAt, localeOf(context))} 시작',
+                              en: 'Started ${ymd(board.createdAt, localeOf(context))}',
+                              zh: '${ymd(board.createdAt, localeOf(context))} 开始',
+                            ),
                             style: TextStyle(
                               fontSize: 11.5,
-                              color: p.ink.withValues(alpha: .45),
+                              color: p.ink.withValues(alpha: night ? .75 : .45),
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -2015,7 +2174,7 @@ class _EmptyRule extends StatelessWidget {
     // 카드에 + 단추가 없으므로, 빈 괘선을 누르는 것이 줄을 더하는 길이다.
     // 눈으로 보이지 않아도 손끝과 보이스오버가 찾을 수 있어야 한다.
     return Semantics(
-      label: '줄 추가',
+      label: tr(context, '줄 추가', en: 'Add line', zh: '添加一行'),
       button: true,
       child: InkWell(
         onTap: onTap,
@@ -2363,9 +2522,18 @@ class _LinkedTextState extends State<_LinkedText> {
     final uri = Uri.parse(url.startsWith('http') ? url : 'https://$url');
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('주소를 열지 못했어요')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            tr(
+              context,
+              '주소를 열지 못했어요',
+              en: 'Could not open the link',
+              zh: '无法打开链接',
+            ),
+          ),
+        ),
+      );
     }
   }
 
@@ -2456,7 +2624,9 @@ class _CheckBox extends StatelessWidget {
             ? Icon(
                 Icons.check_rounded,
                 size: 16,
-                color: palette.night ? const Color(0xFF0A1730) : Colors.white,
+                color: (palette.night || palette.dark)
+                    ? const Color(0xFF0A1730)
+                    : Colors.white,
               )
             : null,
       ),
@@ -2484,7 +2654,16 @@ class _Footer extends StatelessWidget {
           child: Transform.rotate(
             angle: -.03,
             alignment: Alignment.centerLeft,
-            child: _CornerNote('오늘도\n말랑한 하루 ♡', bg: bg, align: TextAlign.left),
+            child: _CornerNote(
+              tr(
+                context,
+                '오늘도\n말랑한 하루 ♡',
+                en: 'A soft\nday today ♡',
+                zh: '今天也是\n软萌的一天 ♡',
+              ),
+              bg: bg,
+              align: TextAlign.left,
+            ),
           ),
         ),
         Expanded(
@@ -2492,7 +2671,12 @@ class _Footer extends StatelessWidget {
             angle: .03,
             alignment: Alignment.centerRight,
             child: _CornerNote(
-              '행복은\n언제나 여기 있어 ♡',
+              tr(
+                context,
+                '행복은\n언제나 여기 있어 ♡',
+                en: 'Happiness is\nalways right here ♡',
+                zh: '幸福\n一直都在 ♡',
+              ),
               bg: bg,
               align: TextAlign.right,
             ),
@@ -2539,7 +2723,7 @@ class _Sheet extends StatelessWidget {
                     ),
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      tooltip: '닫기',
+                      tooltip: tr(context, '닫기', en: 'Close', zh: '关闭'),
                       visualDensity: VisualDensity.compact,
                       icon: const Icon(Icons.close_rounded, size: 20),
                       color: const Color(0xFF6B4F52),
@@ -2601,7 +2785,10 @@ class _BackgroundSwatch extends StatelessWidget {
                 : null,
           ),
           const SizedBox(height: 6),
-          Text(theme.label, style: const TextStyle(fontSize: 11.5)),
+          Text(
+            theme.labelIn(localeOf(context)),
+            style: const TextStyle(fontSize: 11.5),
+          ),
         ],
       ),
     );
@@ -2638,24 +2825,31 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
       ),
       child: SingleChildScrollView(
         child: _Sheet(
-          title: '카드 꾸미기',
+          title: tr(context, '카드 꾸미기', en: 'Decorate card', zh: '装饰卡片'),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const _SheetLabel('제목'),
+              _SheetLabel(tr(context, '제목', en: 'Title', zh: '标题')),
               _SheetField(
                 controller: _title,
                 onChanged: (v) => _store.updateBoard(board.id, title: v),
               ),
               const SizedBox(height: 14),
-              const _SheetLabel('한 줄 설명 (선택)'),
+              _SheetLabel(
+                tr(
+                  context,
+                  '한 줄 설명 (선택)',
+                  en: 'One-line description (optional)',
+                  zh: '一行简介（可选）',
+                ),
+              ),
               _SheetField(
                 controller: _subtitle,
                 onChanged: (v) => _store.updateBoard(board.id, subtitle: v),
               ),
               const SizedBox(height: 20),
-              const _SheetLabel('카드 종류'),
+              _SheetLabel(tr(context, '카드 종류', en: 'Card type', zh: '卡片类型')),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -2666,7 +2860,26 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                     BoardKind.hearts: '하트',
                   }.entries)
                     _PickBox(
-                      label: kind.value,
+                      label: switch (kind.key) {
+                        BoardKind.note => tr(
+                          context,
+                          '메모',
+                          en: 'Note',
+                          zh: '备忘录',
+                        ),
+                        BoardKind.checklist => tr(
+                          context,
+                          '체크리스트',
+                          en: 'Checklist',
+                          zh: '清单',
+                        ),
+                        BoardKind.hearts => tr(
+                          context,
+                          '하트',
+                          en: 'Hearts',
+                          zh: '爱心',
+                        ),
+                      },
                       selected: board.kind == kind.key,
                       onTap: () => setState(
                         () => _store.updateBoard(board.id, kind: kind.key),
@@ -2675,7 +2888,7 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                 ],
               ),
               const SizedBox(height: 20),
-              const _SheetLabel('카드 색'),
+              _SheetLabel(tr(context, '카드 색', en: 'Card color', zh: '卡片颜色')),
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -2709,7 +2922,9 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                 ],
               ),
               const SizedBox(height: 20),
-              const _SheetLabel('제목 옆 표시'),
+              _SheetLabel(
+                tr(context, '제목 옆 표시', en: 'Badge next to title', zh: '标题旁的标记'),
+              ),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -2748,41 +2963,28 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                 ],
               ),
               const SizedBox(height: 20),
-              const _SheetLabel('고양이'),
+              _SheetLabel(tr(context, '고양이', en: 'Cat', zh: '猫咪')),
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  for (final cat in CatSpec.all)
+                  // 처음 만들었던 고양이 열한 마리와 '세 마리' 그림은 여기서 뺐다 —
+                  // 우주 고양이 열여덟 마리만 고를 수 있다.
+                  for (final cat in CatSpec.spaceCats)
                     _CatPick(
-                      label: cat.name,
-                      // 세 마리를 고르면 한 마리 선택은 쉬어 간다.
-                      selected:
-                          board.pose != CatPose.trio && board.catId == cat.id,
-                      onTap: () => setState(() {
-                        _store.updateBoard(
-                          board.id,
-                          catId: cat.id,
-                          pose: board.pose == CatPose.trio
-                              ? CatPose.peekBottom
-                              : null,
-                        );
-                      }),
+                      label: cat.nameIn(localeOf(context)),
+                      selected: board.catId == cat.id,
+                      onTap: () => setState(
+                        () => _store.updateBoard(board.id, catId: cat.id),
+                      ),
                       child: CatFace(spec: cat, width: 44),
                     ),
-                  // 세 마리는 그림 한 장이라 자리가 아니라 고양이로 고른다.
-                  _CatPick(
-                    label: '세 마리',
-                    selected: board.pose == CatPose.trio,
-                    onTap: () => setState(
-                      () => _store.updateBoard(board.id, pose: CatPose.trio),
-                    ),
-                    child: const OriginalArtwork(art: 'trio', width: 56),
-                  ),
                 ],
               ),
               const SizedBox(height: 20),
-              const _SheetLabel('고양이 자리'),
+              _SheetLabel(
+                tr(context, '고양이 자리', en: 'Cat position', zh: '猫咪位置'),
+              ),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -2795,7 +2997,34 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                     CatPose.none: '없음',
                   }.entries)
                     _PickBox(
-                      label: entry.value,
+                      label: switch (entry.key) {
+                        CatPose.peekTop => tr(
+                          context,
+                          '위에 걸터앉기',
+                          en: 'Sit on top',
+                          zh: '趴在顶部',
+                        ),
+                        CatPose.peekBottom => tr(
+                          context,
+                          '오른쪽 아래',
+                          en: 'Bottom right',
+                          zh: '右下角',
+                        ),
+                        CatPose.peekLeft => tr(
+                          context,
+                          '왼쪽 아래',
+                          en: 'Bottom left',
+                          zh: '左下角',
+                        ),
+                        CatPose.watermark => tr(
+                          context,
+                          '옅게 깔기',
+                          en: 'Faint backdrop',
+                          zh: '淡淡铺底',
+                        ),
+                        CatPose.none ||
+                        CatPose.trio => tr(context, '없음', en: 'None', zh: '无'),
+                      },
                       selected: board.pose == entry.key,
                       onTap: () => setState(
                         () => _store.updateBoard(board.id, pose: entry.key),
@@ -2808,7 +3037,7 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                 alignment: Alignment.centerRight,
                 child: FilledButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('완료'),
+                  child: Text(tr(context, '완료', en: 'Done', zh: '完成')),
                 ),
               ),
             ],

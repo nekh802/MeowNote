@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/memo.dart';
+import '../l10n.dart';
 import '../models/attachment.dart';
 
 /// 로컬 우선 저장소.
@@ -14,6 +15,20 @@ import '../models/attachment.dart';
 /// 화면은 네트워크를 기다리지 않고, 비행기 모드에서도 전부 동작한다.
 /// 모든 레코드가 [Board.updatedAt] / [Board.deletedAt] 을 들고 있어서
 /// 나중에 델타 동기화를 그대로 얹을 수 있다.
+/// 기본 카드 하나의 번역. 한국어는 seeds 목록에 이미 있어 여기 없다.
+class _SeedText {
+  const _SeedText({
+    required this.enTitle,
+    required this.zhTitle,
+    this.enSubtitle = '',
+    this.zhSubtitle = '',
+    this.enLines = const [],
+    this.zhLines = const [],
+  });
+  final String enTitle, zhTitle, enSubtitle, zhSubtitle;
+  final List<String> enLines, zhLines;
+}
+
 class MemoStore extends ChangeNotifier {
   MemoStore._();
 
@@ -139,12 +154,12 @@ class MemoStore extends ChangeNotifier {
         // 파일이 깨졌으면 기본 카드로 시작하되, 원본은 지우지 않고 남겨 둔다.
         debugPrint('memo_store.json 읽기 실패 — 기본값으로 시작: $e');
         await _file!.rename('${_file!.path}.broken');
-        _seed();
+        _seed(locale: platformLocale);
       }
       // 쓰던 기기에도 새로 그린 카드 묶음을 한 번만 얹는다. 적어 둔
       // 메모는 건드리지 않고 뒤에 붙인다.
       if (_seededSets < seedSets) {
-        _seed(from: _seededSets);
+        _seed(from: _seededSets, locale: platformLocale);
         _seededSets = seedSets;
       }
       if (_fixups < fixups) {
@@ -152,7 +167,7 @@ class MemoStore extends ChangeNotifier {
         _fixups = fixups;
       }
     } else {
-      _seed();
+      _seed(locale: platformLocale);
     }
 
     if (_deviceId.isEmpty) _deviceId = newId();
@@ -205,10 +220,10 @@ class MemoStore extends ChangeNotifier {
 
   /// 이미 만들어 둔 카드의 글귀를 손본 횟수. 새 값을 올리면 쓰던 기기에서도
   /// [_applyFixups] 가 한 번 돈다.
-  static const fixups = 5;
+  static const fixups = 14;
 
   /// 처음부터 목록 맨 위에 붙박아 두는 기본 카드의 제목.
-  static const pinnedSeeds = {'하나씩 해볼까', '소소한 행복'};
+  static const pinnedSeeds = {'하나씩 해볼까', '기분 좋은 시작'};
 
   /// 묶음마다 어디서 시작하는지. 첫 묶음이 여섯 장, 두 번째가 다섯 장,
   /// 세 번째가 한 장이라 한 묶음의 크기로 셈하지 않고 자리를 그대로 적어
@@ -217,9 +232,60 @@ class MemoStore extends ChangeNotifier {
 
   /// 첫 실행에 놓이는 열두 장. 컨셉아트 두 장의 구성에 '소소한 행복' 한
   /// 장을 더했다 — 한 장은 나중에 걷어냈고, 이미 받아 간 기기에서만
-  /// [_applyFixups] 가 흔적으로 남긴다. 이 구성은 test/seed_cards_test.dart
-  /// 가 통째로 지킨다.
-  void _seed({int from = 0}) {
+  /// [_applyFixups] 가 흔적으로 남긴다. 고양이는 모두 밤하늘 그림에서 오려 낸
+  /// 우주 고양이다. 이 구성은 test/seed_cards_test.dart 가 통째로 지킨다.
+  /// 기본 카드 열두 장의 제목·한 줄 설명·체크리스트 줄. 열쇠는 한국어 제목이다.
+  static const _seedText = <String, _SeedText>{
+    '오늘의 메모': _SeedText(enTitle: "Today's Memo", zhTitle: '今日备忘录'),
+    '하나씩 해볼까': _SeedText(
+      enTitle: 'One at a Time',
+      zhTitle: '一件一件来',
+      enLines: ['Read a book', 'Take a walk', 'Tidy notes'],
+      zhLines: ['读书', '散步', '整理笔记'],
+    ),
+    '잠깐 쉬어가기': _SeedText(
+      enTitle: 'Take a Breather',
+      zhTitle: '稍作休息',
+      enSubtitle: "It's okay to take it slow",
+      zhSubtitle: '慢慢来也没关系',
+    ),
+    '문득 떠오른 생각': _SeedText(enTitle: 'A Passing Thought', zhTitle: '忽然想到的'),
+    '오늘의 기분': _SeedText(enTitle: "Today's Mood", zhTitle: '今日心情'),
+    '나에게 한마디': _SeedText(
+      enTitle: 'A Note to Myself',
+      zhTitle: '给自己的一句话',
+      enSubtitle: 'You did well today',
+      zhSubtitle: '今天也辛苦了',
+    ),
+    '기분 좋은 시작': _SeedText(
+      enTitle: 'A Good Start',
+      zhTitle: '美好的开始',
+      enSubtitle: "Today's small goal",
+      zhSubtitle: '今天的小目标',
+    ),
+    '번뜩인 아이디어': _SeedText(enTitle: 'A Bright Idea', zhTitle: '灵光一闪'),
+    '차분히 정리하기': _SeedText(enTitle: 'Sorting Things Out', zhTitle: '静心整理'),
+    '괜찮아, 천천히': _SeedText(
+      enTitle: "It's Okay, Slowly",
+      zhTitle: '没关系，慢慢来',
+      enSubtitle: "It's okay to do it one at a time",
+      zhSubtitle: '一件一件来也没关系',
+    ),
+    '내일 또 만나': _SeedText(
+      enTitle: 'See You Tomorrow',
+      zhTitle: '明天见',
+      enSubtitle: "A note to tomorrow's me",
+      zhSubtitle: '留给明天的自己的话',
+    ),
+    '소소한 행복': _SeedText(
+      enTitle: 'Little Joys',
+      zhTitle: '小小的幸福',
+      enSubtitle: 'What made me smile today',
+      zhSubtitle: '今天让我微笑的事',
+    ),
+  };
+
+  void _seed({int from = 0, AppLocale locale = AppLocale.ko}) {
     final seeds =
         <
           ({
@@ -237,27 +303,27 @@ class MemoStore extends ChangeNotifier {
             title: '오늘의 메모',
             subtitle: '',
             color: 'blossom',
-            cat: 'mochi',
+            cat: 'ujoo',
             badge: 'heart',
             pose: CatPose.peekTop,
             kind: BoardKind.note,
             lines: <String>[],
           ),
           (
-            title: '하나씩 해볼까',
-            subtitle: '',
-            color: 'apricot',
-            cat: 'dalgi',
-            badge: 'sprout',
-            pose: CatPose.peekBottom,
-            kind: BoardKind.checklist,
-            lines: ['책 읽기', '산책하기', '메모 정리'],
+            title: '기분 좋은 시작',
+            subtitle: '오늘의 작은 목표',
+            color: 'sky',
+            cat: 'rocket',
+            badge: 'spark',
+            pose: CatPose.peekTop,
+            kind: BoardKind.hearts,
+            lines: <String>[],
           ),
           (
             title: '잠깐 쉬어가기',
             subtitle: '천천히 해도 괜찮아',
             color: 'sky',
-            cat: 'byeol',
+            cat: 'cho',
             badge: 'moon',
             pose: CatPose.watermark,
             kind: BoardKind.note,
@@ -267,7 +333,7 @@ class MemoStore extends ChangeNotifier {
             title: '문득 떠오른 생각',
             subtitle: '',
             color: 'lilac',
-            cat: 'sol',
+            cat: 'nakksi',
             badge: 'bulb',
             pose: CatPose.peekLeft,
             kind: BoardKind.note,
@@ -277,7 +343,7 @@ class MemoStore extends ChangeNotifier {
             title: '오늘의 기분',
             subtitle: '',
             color: 'mint',
-            cat: 'haneul',
+            cat: 'got',
             badge: 'smile',
             pose: CatPose.peekBottom,
             kind: BoardKind.note,
@@ -287,7 +353,7 @@ class MemoStore extends ChangeNotifier {
             title: '나에게 한마디',
             subtitle: '오늘도 잘했어',
             color: 'butter',
-            cat: 'kongi',
+            cat: 'yuribyeong',
             badge: 'heart',
             pose: CatPose.peekBottom,
             kind: BoardKind.note,
@@ -295,20 +361,20 @@ class MemoStore extends ChangeNotifier {
           ),
           // 두 번째 이야기.
           (
-            title: '기분 좋은 시작',
-            subtitle: '오늘의 작은 목표',
-            color: 'sky',
-            cat: 'mochi',
-            badge: 'spark',
-            pose: CatPose.peekTop,
-            kind: BoardKind.hearts,
-            lines: <String>[],
+            title: '하나씩 해볼까',
+            subtitle: '',
+            color: 'apricot',
+            cat: 'dalbit',
+            badge: 'sprout',
+            pose: CatPose.peekBottom,
+            kind: BoardKind.checklist,
+            lines: ['책 읽기', '산책하기', '메모 정리'],
           ),
           (
             title: '번뜩인 아이디어',
             subtitle: '',
             color: 'apricot',
-            cat: 'bori',
+            cat: 'usubu',
             badge: 'bulb',
             pose: CatPose.peekLeft,
             kind: BoardKind.note,
@@ -318,7 +384,7 @@ class MemoStore extends ChangeNotifier {
             title: '차분히 정리하기',
             subtitle: '',
             color: 'lilac',
-            cat: 'mongi',
+            cat: 'byeolit',
             badge: 'spark',
             pose: CatPose.watermark,
             kind: BoardKind.checklist,
@@ -328,7 +394,7 @@ class MemoStore extends ChangeNotifier {
             title: '괜찮아, 천천히',
             subtitle: '하나씩 해도 괜찮아',
             color: 'mint',
-            cat: 'dalrae',
+            cat: 'haemak',
             badge: 'none',
             pose: CatPose.peekTop,
             kind: BoardKind.note,
@@ -338,7 +404,7 @@ class MemoStore extends ChangeNotifier {
             title: '내일 또 만나',
             subtitle: '내일의 나에게 남기는 말',
             color: 'butter',
-            cat: 'danchu',
+            cat: 'pungseon',
             badge: 'heart',
             pose: CatPose.peekTop,
             kind: BoardKind.note,
@@ -349,9 +415,9 @@ class MemoStore extends ChangeNotifier {
             title: '소소한 행복',
             subtitle: '오늘 나를 웃게 한 것',
             color: 'blossom',
-            cat: 'mochi',
+            cat: 'eunha',
             badge: 'paw',
-            pose: CatPose.peekBottom,
+            pose: CatPose.peekTop,
             kind: BoardKind.hearts,
             lines: <String>[],
           ),
@@ -363,9 +429,19 @@ class MemoStore extends ChangeNotifier {
     final start = from < _setStarts.length ? _setStarts[from] : seeds.length;
     for (var i = start; i < seeds.length; i++) {
       final s = seeds[i];
+      // 카드 자체(색·고양이·자리 …)는 언어를 안 타지만, 적힌 글은 기기
+      // 언어를 따른다. 옮긴 말은 그대로 저장한다 — 제목은 누구나 나중에
+      // 고칠 수 있는 제 글이라, 나중에 언어를 바꿔도 되돌리지 않는다. 이관
+      // 규칙은 한국어 제목만 살피므로, 처음부터 다른 말로 놓인 카드는
+      // (기본값 그대로라도) 더 손대지 않는다 — 그 카드는 이미 최종 모습이다.
+      final tx = _seedText[s.title];
       final board = Board.create(
-        title: s.title,
-        subtitle: s.subtitle,
+        title: locale == AppLocale.ko || tx == null
+            ? s.title
+            : (locale == AppLocale.en ? tx.enTitle : tx.zhTitle),
+        subtitle: locale == AppLocale.ko || tx == null
+            ? s.subtitle
+            : (locale == AppLocale.en ? tx.enSubtitle : tx.zhSubtitle),
         colorKey: s.color,
         catId: s.cat,
         badgeKey: s.badge,
@@ -376,10 +452,11 @@ class MemoStore extends ChangeNotifier {
       board.updatedAt = stamp;
       if (pinnedSeeds.contains(s.title)) board.pinnedAt = stamp;
       _boards.add(board);
-      for (var k = 0; k < s.lines.length; k++) {
-        _entries.add(
-          Entry.create(boardId: board.id, text: s.lines[k], order: k),
-        );
+      final lines = locale == AppLocale.ko || tx == null
+          ? s.lines
+          : (locale == AppLocale.en ? tx.enLines : tx.zhLines);
+      for (var k = 0; k < lines.length; k++) {
+        _entries.add(Entry.create(boardId: board.id, text: lines[k], order: k));
       }
     }
   }
@@ -413,8 +490,111 @@ class MemoStore extends ChangeNotifier {
         board.catId = 'mochi';
         board.pose = CatPose.peekTop;
       }
+      // 기본 카드 열두 장의 고양이를 우주 고양이로 옮긴다. 위 두 규칙이 먼저
+      // 돌아 '기분 좋은 시작'·'소소한 행복'은 이 시점에 이미 모찌라, 여기서는
+      // 그 값을 기준으로 본다. 처음 받은 모습 그대로인 카드만 옮기고, 직접
+      // 다른 아이를 골라 둔 카드는 그대로 둔다.
+      const spaceDefaults = {
+        '오늘의 메모': ('mochi', 'ujoo'),
+        '하나씩 해볼까': ('dalgi', 'byeoltong'),
+        '잠깐 쉬어가기': ('byeol', 'cho'),
+        '문득 떠오른 생각': ('sol', 'nakksi'),
+        '오늘의 기분': ('haneul', 'got'),
+        '나에게 한마디': ('kongi', 'yuribyeong'),
+        '기분 좋은 시작': ('mochi', 'rocket'),
+        '번뜩인 아이디어': ('bori', 'byeolit'),
+        '차분히 정리하기': ('mongi', 'wiseong'),
+        '괜찮아, 천천히': ('dalrae', 'haemak'),
+        '내일 또 만나': ('danchu', 'pungseon'),
+        '소소한 행복': ('mochi', 'usubu'),
+      };
+      final swap = spaceDefaults[board.title];
+      if (swap != null && board.catId == swap.$1) board.catId = swap.$2;
+      // '소소한 행복'은 아래 자리에서 위에 걸터앉는 자리로 옮긴다. 기본 그대로인
+      // 카드만 옮기고, 직접 다른 자리로 바꿔 둔 카드는 그대로 둔다.
+      if (board.title == '소소한 행복' &&
+          board.catId == 'usubu' &&
+          board.pose == CatPose.peekBottom) {
+        board.pose = CatPose.peekTop;
+      }
+      // '하나씩 해볼까'는 별똥에서 달빛으로 한 번 더 옮긴다. 자리(오른쪽
+      // 아래)는 그대로다.
+      if (board.title == '하나씩 해볼까' && board.catId == 'byeoltong') {
+        board.catId = 'dalbit';
+      }
+      // 처음 만들었던 고양이 열한 마리와 '세 마리' 그림은 이제 어느 카드에도
+      // 나오지 않는다. 위 규칙들이 기본 카드는 이미 우주 고양이로 옮겨 뒀으니,
+      // 여기서는 그 규칙이 손대지 않은 나머지(사용자가 만든 카드, 직접 옛
+      // 고양이로 골라 둔 카드)를 마저 옮긴다. 어느 아이를 받을지는 카드 번호로
+      // 정해, 매번 다르되 같은 카드는 항상 같은 아이를 받는다.
+      if (_retiredCats.contains(board.catId) || board.pose == CatPose.trio) {
+        final i = board.id.hashCode.abs() % _spaceCatIds.length;
+        board.catId = _spaceCatIds[i];
+        if (board.pose == CatPose.trio) board.pose = CatPose.peekBottom;
+      }
+      // 기본으로 붙박아 두는 카드를 '소소한 행복'에서 '기분 좋은 시작'으로
+      // 바꾼다. pinnedSeeds 를 고치는 것만으로는 이미 붙박아 둔 '소소한
+      // 행복'을 떼지 못하므로(위 줄은 붙이기만 하고 떼지는 않는다) 여기서
+      // 직접 뗀다.
+      if (board.title == '소소한 행복') board.pinnedAt = null;
+      // '차분히 정리하기'는 위성에서 별잇기로 한 번 더 옮긴다.
+      if (board.title == '차분히 정리하기' && board.catId == 'wiseong') {
+        board.catId = 'byeolit';
+      }
+      // '기분 좋은 시작'과 '하나씩 해볼까'의 차례를 맞바꾼다. 이 값은 화면
+      // 어디서도 손으로 고칠 수 없어, 기본 그대로인지 따지지 않고 늘 맞바꾼다.
+      if (board.title == '기분 좋은 시작') board.order = 1;
+      if (board.title == '하나씩 해볼까') board.order = 6;
+      // '번뜩인 아이디어'는 별잇기에서 우주복으로 한 번 더 옮긴다. 자리(왼쪽
+      // 아래)는 그대로다.
+      if (board.title == '번뜩인 아이디어' && board.catId == 'byeolit') {
+        board.catId = 'usubu';
+      }
+      // '소소한 행복'은 우주복에서 은하로 한 번 더 옮긴다. 자리(위에
+      // 걸터앉기)는 그대로다.
+      if (board.title == '소소한 행복' && board.catId == 'usubu') {
+        board.catId = 'eunha';
+      }
     }
   }
+
+  /// 처음 만들었던 고양이 열한 마리. [_applyFixups] 가 다른 아이로 옮긴다.
+  static const _retiredCats = {
+    'mochi',
+    'dalgi',
+    'byeol',
+    'sol',
+    'nabi',
+    'kongi',
+    'haneul',
+    'bori',
+    'mongi',
+    'dalrae',
+    'danchu',
+  };
+
+  /// 우주 고양이 열여덟 마리. [lib/widgets/original_artwork.dart] 의
+  /// spaceCats 와 같은 목록이다 — 위젯을 들여오지 않으려고 여기 따로 적는다.
+  static const _spaceCatIds = [
+    'ujoo',
+    'byeoltong',
+    'dalbit',
+    'eunha',
+    'choco',
+    'pyeonji',
+    'cho',
+    'byeol2',
+    'usubu',
+    'got',
+    'rocket',
+    'byeoljari',
+    'nakksi',
+    'yuribyeong',
+    'wiseong',
+    'pungseon',
+    'haemak',
+    'byeolit',
+  ];
 
   /// 파일을 건드리지 않고 기본 카드만 채운다. 렌더링 검증용.
   @visibleForTesting
@@ -582,11 +762,15 @@ class MemoStore extends ChangeNotifier {
 
   /// 빈 메모 한 장을 새로 놓는다. 색과 고양이는 부르는 쪽이 고른다 —
   /// 저장소가 화면의 색표를 알 이유는 없다.
-  Board addBoard({required String colorKey, required String catId}) {
+  Board addBoard({
+    required String colorKey,
+    required String catId,
+    String title = '새 메모',
+  }) {
     final order =
         _boards.fold<int>(-1, (m, b) => b.order > m ? b.order : m) + 1;
     final board = Board.create(
-      title: '새 메모',
+      title: title,
       colorKey: colorKey,
       catId: catId,
       order: order,

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../l10n.dart';
 import 'original_artwork.dart';
 
 /// 눈 모양.
@@ -411,8 +413,45 @@ class CatSpec {
     byeolit,
   ];
 
+  // 모르는 id 로 부르면 우주 고양이로 돌아간다. 처음 열한 마리는 이제 어느
+  // 카드에도 나오지 않는다.
   static CatSpec byId(String id) =>
-      all.firstWhere((c) => c.id == id, orElse: () => mochi);
+      all.firstWhere((c) => c.id == id, orElse: () => ujoo);
+
+  /// 우주 고양이 이름의 영어·중국어. 키는 [id] 와 같다.
+  static const _spaceNames = <String, (String, String)>{
+    'ujoo': ('Cosmo', '宇宙'),
+    'byeoltong': ('Comet', '流星'),
+    'dalbit': ('Moonlight', '月光'),
+    'eunha': ('Galaxy', '银河'),
+    'choco': ('Choco', '巧克力'),
+    'pyeonji': ('Letter', '书信'),
+    'cho': ('Crescent', '新月'),
+    'byeol2': ('Starlight', '星光'),
+    'usubu': ('Spacesuit', '太空服'),
+    'got': ('Rings', '光环'),
+    'rocket': ('Rocket', '火箭'),
+    'byeoljari': ('Constellation', '星座'),
+    'nakksi': ('Fishing', '钓鱼'),
+    'yuribyeong': ('Star Jar', '星瓶'),
+    'wiseong': ('Satellite', '卫星'),
+    'pungseon': ('Balloons', '气球'),
+    'haemak': ('Hammock', '吊床'),
+    'byeolit': ('Star Link', '连星'),
+  };
+
+  /// [name] 을 기기 언어로 옮긴다. 우주 고양이가 아니면 원래 이름 그대로다 —
+  /// 처음 열한 마리는 이제 어느 카드에도 나오지 않는다.
+  String nameIn(AppLocale locale) => switch (locale) {
+    AppLocale.ko => name,
+    AppLocale.en => _spaceNames[id]?.$1 ?? name,
+    AppLocale.zh => _spaceNames[id]?.$2 ?? name,
+  };
+
+  /// 우주 고양이 열여덟 마리만.
+  static final spaceCats = all
+      .where((c) => OriginalArtwork.spaceCats.contains(c.id))
+      .toList();
 }
 
 /// Original illustration selected from the supplied malang1.png.

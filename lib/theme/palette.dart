@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n.dart';
+
 /// 카드 한 장의 색 묶음. 바탕·글자·괘선이 항상 한 세트로 움직여야
 /// 배경을 바꿔도 대비가 무너지지 않는다.
 class CardPalette {
@@ -11,6 +13,7 @@ class CardPalette {
     required this.line,
     required this.tint,
     this.night = false,
+    this.dark = false,
   });
 
   final String key;
@@ -20,26 +23,18 @@ class CardPalette {
   final Color line; // 괘선·체크박스 테두리
   final Color tint; // 강조 (+ 버튼, 체크 표시)
 
+  /// 바탕 자체가 짙은 색인지. 밝은 글자와 괘선을 이미 쓰므로 밤하늘에서도 글자색을
+  /// 바꾸지 않는다.
+  final bool dark;
+
   /// 밤하늘 위에서 쓰는 모습인지. 체크 표시처럼 바탕에 따라 색이 갈리는 곳이 본다.
   final bool night;
-
-  /// 밤하늘 위에 놓일 때의 모습. 카드는 반투명한 남색 박스가 되어 파스텔
-  /// 바탕을 깔지 않으므로, 글자·괘선·강조를 카드 색의 밝은 짝으로 바꾼다.
-  /// 어느 카드인지는 바탕이 아니라 이 색으로 알아본다.
-  CardPalette onNight() => CardPalette(
-    key: key,
-    label: label,
-    bg: bg,
-    ink: nightInk,
-    line: nightInk.withValues(alpha: .24),
-    tint: nightInk,
-    night: true,
-  );
 
   /// 밤하늘 위에 놓일 때 쓰는 글자색. [ink] 는 밝은 카드 바탕을 전제로 한
   /// 짙은 색이라, 남색 위에 그대로 얹으면 글씨가 묻힌다. 카드 색을 그대로
   /// 알아볼 수 있도록 같은 색의 밝은 짝을 따로 둔다.
   Color get nightInk => switch (key) {
+    'navy' => const Color(0xFFDCE6F7),
     'apricot' => const Color(0xFFF2C98A),
     'sky' => const Color(0xFF94C0E8),
     'lilac' => const Color(0xFFBCAEEA),
@@ -51,6 +46,20 @@ class CardPalette {
 
   /// 배경에 따라 고르는 글자색.
   Color inkOn(bool isDark) => isDark ? nightInk : ink;
+
+  /// 밤하늘에서 반투명(50%)으로 깔린 카드에 쓰는 모습. 바탕은 고른 카드 색 그대로
+  /// 두고, 글자·괘선·강조만 밝은 짝으로 바꾼다. 짙은 글씨는 어두운 하늘과 섞인
+  /// 카드 위에서 묻힌다.
+  CardPalette onNight() => CardPalette(
+    key: key,
+    label: label,
+    bg: bg,
+    ink: nightInk,
+    line: nightInk.withValues(alpha: .55),
+    tint: nightInk,
+    night: true,
+    dark: dark,
+  );
 
   static const blossom = CardPalette(
     key: 'blossom',
@@ -111,6 +120,29 @@ class CardPalette {
     tint: Color(0xFFC9B6BB),
   );
 
+  /// 남색 메모지. 다른 색과 달리 바탕이 짙어 글자·괘선이 밝다. 밤하늘에서는 하늘빛이
+  /// 도는 반투명한 남색 박스로 깔린다(처음 밤하늘 카드로 만들었던 모습).
+  static const navy = CardPalette(
+    key: 'navy',
+    label: '남색',
+    bg: Color(0xFF2A3A5C),
+    ink: Color(0xFFDCE6F7),
+    line: Color(0x4DDCE6F7),
+    tint: Color(0xFF9DBBEB),
+    dark: true,
+  );
+
+  /// 새 메모가 돌아가며 받는 밝은 색.
+  static const pastels = <CardPalette>[
+    blossom,
+    apricot,
+    sky,
+    lilac,
+    mint,
+    butter,
+    white,
+  ];
+
   static const all = <CardPalette>[
     blossom,
     apricot,
@@ -119,6 +151,7 @@ class CardPalette {
     mint,
     butter,
     white,
+    navy,
   ];
 
   static CardPalette byKey(String key) =>
@@ -204,10 +237,6 @@ class BackgroundTheme {
   /// 박스를 쓴다. 밤하늘이 아니면 [panel] 과 같다.
   Color get listPanel =>
       isDark ? const Color(0xFF3B5A88).withValues(alpha: .5) : panel;
-
-  /// 메모 페이지 카드가 까는 불투명한 남색. 목록의 반투명 블록(뒤의 하늘이 섞여
-  /// 약 #223653)보다 한 단계 밝아, 카드가 하늘과 또렷이 갈린다.
-  static const memoBox = Color(0xFF2A3A55);
 
   /// 그 바탕을 두르는 테두리.
   Color get panelEdge => isDark
@@ -309,6 +338,27 @@ class BackgroundTheme {
 
   static BackgroundTheme byKey(String key) =>
       all.firstWhere((b) => b.key == key, orElse: () => coolWhite);
+
+  /// 배경 이름의 영어·중국어. 키는 [key] 와 같다.
+  static const _names = <String, (String, String)>{
+    'paper': ('Paper', '纸张'),
+    'cream': ('Cream', '奶油色'),
+    'peach': ('Peach', '桃色'),
+    'lavender': ('Lavender', '薰衣草'),
+    'mint': ('Mint', '薄荷绿'),
+    'sky': ('Sky', '天空蓝'),
+    'cocoa': ('Cocoa', '可可色'),
+    'night': ('Night Sky', '夜空'),
+    'white': ('Warm White', '暖白'),
+    'coolWhite': ('Cool White', '冷白'),
+  };
+
+  /// [label] 을 기기 언어로 옮긴다.
+  String labelIn(AppLocale locale) => switch (locale) {
+    AppLocale.ko => label,
+    AppLocale.en => _names[key]?.$1 ?? label,
+    AppLocale.zh => _names[key]?.$2 ?? label,
+  };
 }
 
 /// 창과 단추가 함께 쓰는 잿빛 결. 카드 꾸미기 창에서 다듬은 모습을 그대로
