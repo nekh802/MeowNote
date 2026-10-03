@@ -20,13 +20,42 @@ class _SeedText {
   const _SeedText({
     required this.enTitle,
     required this.zhTitle,
+    required this.frTitle,
+    required this.jaTitle,
     this.enSubtitle = '',
     this.zhSubtitle = '',
+    this.frSubtitle = '',
+    this.jaSubtitle = '',
     this.enLines = const [],
     this.zhLines = const [],
+    this.frLines = const [],
+    this.jaLines = const [],
   });
-  final String enTitle, zhTitle, enSubtitle, zhSubtitle;
-  final List<String> enLines, zhLines;
+  final String enTitle, zhTitle, frTitle, jaTitle;
+  final String enSubtitle, zhSubtitle, frSubtitle, jaSubtitle;
+  final List<String> enLines, zhLines, frLines, jaLines;
+
+  String title(AppLocale l) => switch (l) {
+    AppLocale.en => enTitle,
+    AppLocale.zh => zhTitle,
+    AppLocale.fr => frTitle,
+    AppLocale.ja => jaTitle,
+    AppLocale.ko => '',
+  };
+  String subtitle(AppLocale l) => switch (l) {
+    AppLocale.en => enSubtitle,
+    AppLocale.zh => zhSubtitle,
+    AppLocale.fr => frSubtitle,
+    AppLocale.ja => jaSubtitle,
+    AppLocale.ko => '',
+  };
+  List<String> lines(AppLocale l) => switch (l) {
+    AppLocale.en => enLines,
+    AppLocale.zh => zhLines,
+    AppLocale.fr => frLines,
+    AppLocale.ja => jaLines,
+    AppLocale.ko => const [],
+  };
 }
 
 class MemoStore extends ChangeNotifier {
@@ -41,7 +70,7 @@ class MemoStore extends ChangeNotifier {
   final List<Entry> _entries = [];
   final List<Attachment> _attachments = [];
 
-  String _backgroundKey = 'coolWhite';
+  String _backgroundKey = 'night';
   String _fontKey = 'gamja';
 
   static const fontOptions = {
@@ -199,7 +228,7 @@ class MemoStore extends ChangeNotifier {
         ),
       );
     final settings = (j['settings'] as Map?)?.cast<String, dynamic>() ?? {};
-    _backgroundKey = (settings['backgroundKey'] ?? 'coolWhite') as String;
+    _backgroundKey = (settings['backgroundKey'] ?? 'night') as String;
     _fontKey = fontOptions.containsKey(settings['fontKey'])
         ? settings['fontKey'] as String
         : 'gamja';
@@ -236,52 +265,105 @@ class MemoStore extends ChangeNotifier {
   /// 우주 고양이다. 이 구성은 test/seed_cards_test.dart 가 통째로 지킨다.
   /// 기본 카드 열두 장의 제목·한 줄 설명·체크리스트 줄. 열쇠는 한국어 제목이다.
   static const _seedText = <String, _SeedText>{
-    '오늘의 메모': _SeedText(enTitle: "Today's Memo", zhTitle: '今日备忘录'),
+    '오늘의 메모': _SeedText(
+      enTitle: "Today's Memo",
+      zhTitle: '今日备忘录',
+      frTitle: 'Note du jour',
+      jaTitle: '今日のメモ',
+    ),
     '하나씩 해볼까': _SeedText(
       enTitle: 'One at a Time',
       zhTitle: '一件一件来',
+      frTitle: 'Une chose à la fois',
+      jaTitle: 'ひとつずつやってみよう',
       enLines: ['Read a book', 'Take a walk', 'Tidy notes'],
       zhLines: ['读书', '散步', '整理笔记'],
+      frLines: ['Lire un livre', 'Faire une promenade', 'Ranger les notes'],
+      jaLines: ['本を読む', '散歩する', 'メモを整理する'],
     ),
     '잠깐 쉬어가기': _SeedText(
       enTitle: 'Take a Breather',
       zhTitle: '稍作休息',
+      frTitle: 'Une petite pause',
+      jaTitle: 'ちょっと一休み',
       enSubtitle: "It's okay to take it slow",
       zhSubtitle: '慢慢来也没关系',
+      frSubtitle: 'Prenez votre temps',
+      jaSubtitle: 'ゆっくりでも大丈夫',
     ),
-    '문득 떠오른 생각': _SeedText(enTitle: 'A Passing Thought', zhTitle: '忽然想到的'),
-    '오늘의 기분': _SeedText(enTitle: "Today's Mood", zhTitle: '今日心情'),
+    '문득 떠오른 생각': _SeedText(
+      enTitle: 'A Passing Thought',
+      zhTitle: '忽然想到的',
+      frTitle: 'Une pensée soudaine',
+      jaTitle: 'ふと浮かんだ考え',
+    ),
+    '오늘의 기분': _SeedText(
+      enTitle: "Today's Mood",
+      zhTitle: '今日心情',
+      frTitle: 'Humeur du jour',
+      jaTitle: '今日の気分',
+    ),
     '나에게 한마디': _SeedText(
       enTitle: 'A Note to Myself',
       zhTitle: '给自己的一句话',
+      frTitle: 'Un mot pour moi',
+      jaTitle: '自分へのひとこと',
       enSubtitle: 'You did well today',
       zhSubtitle: '今天也辛苦了',
+      frSubtitle: "Bravo pour aujourd'hui",
+      jaSubtitle: '今日もおつかれさま',
     ),
     '기분 좋은 시작': _SeedText(
       enTitle: 'A Good Start',
       zhTitle: '美好的开始',
+      frTitle: 'Un bon départ',
+      jaTitle: 'いい気分のスタート',
       enSubtitle: "Today's small goal",
       zhSubtitle: '今天的小目标',
+      frSubtitle: 'Le petit objectif du jour',
+      jaSubtitle: '今日の小さな目標',
     ),
-    '번뜩인 아이디어': _SeedText(enTitle: 'A Bright Idea', zhTitle: '灵光一闪'),
-    '차분히 정리하기': _SeedText(enTitle: 'Sorting Things Out', zhTitle: '静心整理'),
+    '번뜩인 아이디어': _SeedText(
+      enTitle: 'A Bright Idea',
+      zhTitle: '灵光一闪',
+      frTitle: 'Une idée lumineuse',
+      jaTitle: 'ひらめいたアイデア',
+    ),
+    '차분히 정리하기': _SeedText(
+      enTitle: 'Sorting Things Out',
+      zhTitle: '静心整理',
+      frTitle: "Mettre de l'ordre",
+      jaTitle: '落ち着いて整理',
+    ),
     '괜찮아, 천천히': _SeedText(
       enTitle: "It's Okay, Slowly",
       zhTitle: '没关系，慢慢来',
+      frTitle: 'Ça va, doucement',
+      jaTitle: '大丈夫、ゆっくり',
       enSubtitle: "It's okay to do it one at a time",
       zhSubtitle: '一件一件来也没关系',
+      frSubtitle: "Une chose à la fois, c'est très bien",
+      jaSubtitle: 'ひとつずつでも大丈夫',
     ),
     '내일 또 만나': _SeedText(
       enTitle: 'See You Tomorrow',
       zhTitle: '明天见',
+      frTitle: 'À demain',
+      jaTitle: 'また明日',
       enSubtitle: "A note to tomorrow's me",
       zhSubtitle: '留给明天的自己的话',
+      frSubtitle: 'Un mot pour moi de demain',
+      jaSubtitle: '明日の自分へのメッセージ',
     ),
     '소소한 행복': _SeedText(
       enTitle: 'Little Joys',
       zhTitle: '小小的幸福',
+      frTitle: 'Petits bonheurs',
+      jaTitle: 'ささやかな幸せ',
       enSubtitle: 'What made me smile today',
       zhSubtitle: '今天让我微笑的事',
+      frSubtitle: "Ce qui m'a fait sourire aujourd'hui",
+      jaSubtitle: '今日わたしを笑顔にしたこと',
     ),
   };
 
@@ -438,10 +520,10 @@ class MemoStore extends ChangeNotifier {
       final board = Board.create(
         title: locale == AppLocale.ko || tx == null
             ? s.title
-            : (locale == AppLocale.en ? tx.enTitle : tx.zhTitle),
+            : tx.title(locale),
         subtitle: locale == AppLocale.ko || tx == null
             ? s.subtitle
-            : (locale == AppLocale.en ? tx.enSubtitle : tx.zhSubtitle),
+            : tx.subtitle(locale),
         colorKey: s.color,
         catId: s.cat,
         badgeKey: s.badge,
@@ -454,7 +536,7 @@ class MemoStore extends ChangeNotifier {
       _boards.add(board);
       final lines = locale == AppLocale.ko || tx == null
           ? s.lines
-          : (locale == AppLocale.en ? tx.enLines : tx.zhLines);
+          : tx.lines(locale);
       for (var k = 0; k < lines.length; k++) {
         _entries.add(Entry.create(boardId: board.id, text: lines[k], order: k));
       }
@@ -658,6 +740,17 @@ class MemoStore extends ChangeNotifier {
     if (afterEntryId != null || moveToEnd) {
       attachment.afterEntryId = afterEntryId;
     }
+    _bump(attachment.boardId);
+  }
+
+  /// 첨부를 끌어다 다른 줄 아래([afterEntryId])나 글 맨 끝(null)에 놓는다.
+  /// 그 자리에 먼저 있던 첨부들 뒤에 붙도록 목록 끝으로 옮긴다.
+  void moveAttachment(Attachment attachment, String? afterEntryId) {
+    if (attachment.afterEntryId == afterEntryId) return;
+    attachment.afterEntryId = afterEntryId;
+    _attachments
+      ..remove(attachment)
+      ..add(attachment);
     _bump(attachment.boardId);
   }
 

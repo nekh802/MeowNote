@@ -418,26 +418,26 @@ class CatSpec {
   static CatSpec byId(String id) =>
       all.firstWhere((c) => c.id == id, orElse: () => ujoo);
 
-  /// 우주 고양이 이름의 영어·중국어. 키는 [id] 와 같다.
-  static const _spaceNames = <String, (String, String)>{
-    'ujoo': ('Cosmo', '宇宙'),
-    'byeoltong': ('Comet', '流星'),
-    'dalbit': ('Moonlight', '月光'),
-    'eunha': ('Galaxy', '银河'),
-    'choco': ('Choco', '巧克力'),
-    'pyeonji': ('Letter', '书信'),
-    'cho': ('Crescent', '新月'),
-    'byeol2': ('Starlight', '星光'),
-    'usubu': ('Spacesuit', '太空服'),
-    'got': ('Rings', '光环'),
-    'rocket': ('Rocket', '火箭'),
-    'byeoljari': ('Constellation', '星座'),
-    'nakksi': ('Fishing', '钓鱼'),
-    'yuribyeong': ('Star Jar', '星瓶'),
-    'wiseong': ('Satellite', '卫星'),
-    'pungseon': ('Balloons', '气球'),
-    'haemak': ('Hammock', '吊床'),
-    'byeolit': ('Star Link', '连星'),
+  /// 우주 고양이 이름의 영어·중국어·프랑스어·일본어. 키는 [id] 와 같다.
+  static const _spaceNames = <String, (String, String, String, String)>{
+    'ujoo': ('Cosmo', '宇宙', 'Cosmo', 'コスモ'),
+    'byeoltong': ('Comet', '流星', 'Comète', '流れ星'),
+    'dalbit': ('Moonlight', '月光', 'Clair de lune', '月あかり'),
+    'eunha': ('Galaxy', '银河', 'Galaxie', '銀河'),
+    'choco': ('Choco', '巧克力', 'Choco', 'チョコ'),
+    'pyeonji': ('Letter', '书信', 'Lettre', 'お手紙'),
+    'cho': ('Crescent', '新月', 'Croissant de lune', '三日月'),
+    'byeol2': ('Starlight', '星光', "Lumière d'étoile", '星あかり'),
+    'usubu': ('Spacesuit', '太空服', 'Combinaison spatiale', '宇宙服'),
+    'got': ('Rings', '光环', 'Anneaux', 'リング'),
+    'rocket': ('Rocket', '火箭', 'Fusée', 'ロケット'),
+    'byeoljari': ('Constellation', '星座', 'Constellation', '星座'),
+    'nakksi': ('Fishing', '钓鱼', 'Pêche', '釣り'),
+    'yuribyeong': ('Star Jar', '星瓶', "Bocal d'étoiles", '星のびん'),
+    'wiseong': ('Satellite', '卫星', 'Satellite', '人工衛星'),
+    'pungseon': ('Balloons', '气球', 'Ballons', '風船'),
+    'haemak': ('Hammock', '吊床', 'Hamac', 'ハンモック'),
+    'byeolit': ('Star Link', '连星', "Lien d'étoiles", '星つなぎ'),
   };
 
   /// [name] 을 기기 언어로 옮긴다. 우주 고양이가 아니면 원래 이름 그대로다 —
@@ -446,6 +446,8 @@ class CatSpec {
     AppLocale.ko => name,
     AppLocale.en => _spaceNames[id]?.$1 ?? name,
     AppLocale.zh => _spaceNames[id]?.$2 ?? name,
+    AppLocale.fr => _spaceNames[id]?.$3 ?? name,
+    AppLocale.ja => _spaceNames[id]?.$4 ?? name,
   };
 
   /// 우주 고양이 열여덟 마리만.

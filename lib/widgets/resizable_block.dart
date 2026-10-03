@@ -87,7 +87,14 @@ class _ResizableBlockState extends State<ResizableBlock> {
                     ),
                   },
                   child: Semantics(
-                    label: tr(context, '크기 조절', en: 'Resize', zh: '调整大小'),
+                    label: tr(
+                      context,
+                      '크기 조절',
+                      en: 'Resize',
+                      zh: '调整大小',
+                      fr: 'Redimensionner',
+                      ja: 'サイズ調整',
+                    ),
                     child: Container(
                       key: const Key('resizeHandle'),
                       width: ResizableBlock.handleSize,

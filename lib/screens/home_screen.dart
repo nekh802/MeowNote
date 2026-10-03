@@ -14,7 +14,6 @@ import '../data/desktop_window.dart';
 import '../data/memo_store.dart';
 import '../data/share_text.dart';
 import '../data/when.dart';
-import '../data/widget_feed.dart';
 import '../l10n.dart';
 import '../models/memo.dart';
 import '../theme/palette.dart';
@@ -65,9 +64,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   _Caret? _focus;
   String? _selectedBoardId;
 
-  /// 홈 화면 위젯은 타자 한 글자마다가 아니라 잠깐 쉴 때 한 번 갱신한다.
-  Timer? _widgetTimer;
-
   /// 지금 사라지는 중인 카드. 지우는 동안만 값이 들어 있다.
   String? _vanishingBoardId;
   static const _vanishDuration = Duration(milliseconds: 240);
@@ -87,9 +83,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 슬그머니 바뀐다.
     _selectedBoardId = _store.boards.firstOrNull?.id;
     WidgetsBinding.instance.addObserver(this);
-    _store.addListener(_scheduleWidget);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      WidgetFeed.publish(_store);
       _offerStoreUpdate();
     });
   }
@@ -97,18 +91,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     _pages.dispose();
-    _widgetTimer?.cancel();
-    _store.removeListener(_scheduleWidget);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  void _scheduleWidget() {
-    _widgetTimer?.cancel();
-    _widgetTimer = Timer(
-      const Duration(seconds: 1),
-      () => WidgetFeed.publish(_store),
-    );
   }
 
   @override
@@ -117,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.inactive) {
-      unawaited(_store.flush().then((_) => WidgetFeed.publish(_store)));
+      unawaited(_store.flush());
     }
     // 오래 켜 둔 앱은 실행 때만 살피면 새 판을 놓친다. 앞으로 돌아올 때도
     // 살피되, 하루 안에 다시 묻지는 않는다.
@@ -244,7 +228,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final board = _store.addBoard(
       colorKey: colorKey,
       catId: catId,
-      title: tr(context, '새 메모', en: 'New Memo', zh: '新建备忘录'),
+      title: tr(
+        context,
+        '새 메모',
+        en: 'New Memo',
+        zh: '新建备忘录',
+        fr: 'Nouvelle note',
+        ja: '新規メモ',
+      ),
     );
     _pickBoard(board);
   }
@@ -316,6 +307,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               '내보내기에 실패했어요: $e',
               en: 'Export failed: $e',
               zh: '导出失败：$e',
+              fr: "Échec de l'exportation : $e",
+              ja: '書き出しに失敗しました：$e',
             ),
           ),
         ),
@@ -348,35 +341,62 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     _store.markStoreVersionTold(release.version);
 
+    // 밤하늘 배경에서는 남색 창에 밝은 글씨, 그 밖에는 흰 창에 짙은 글씨.
+    final dark = BackgroundTheme.byKey(_store.backgroundKey).isDark;
+    final ink = dark ? const Color(0xFFF3EEF6) : const Color(0xFF6B4F52);
     final go = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: dark ? const Color(0xFF15294D) : Colors.white,
+        surfaceTintColor: Colors.transparent,
         title: Text(
           tr(
             context,
             '새 버전이 나왔어요.',
             en: 'A new version is here.',
             zh: '有新版本了。',
+            fr: 'Une nouvelle version est disponible.',
+            ja: '新しいバージョンが出ました。',
           ),
-          style: _round(19, const Color(0xFF6B4F52)),
+          style: _round(19, ink),
         ),
         content: Text(
           tr(
             context,
-            '앱스토어에서 말랑 고양이 메모를 최신 버전으로 업데이트 해주세요.',
-            en: 'Please update Malang Cat to the latest version on the App Store.',
-            zh: '请在 App Store 中将猫咪备忘录更新到最新版本。',
+            '앱스토어에서 Meow Note를 최신 버전으로 업데이트 해주세요.',
+            en: 'Please update Meow Note to the latest version on the App Store.',
+            zh: '请在 App Store 中将 Meow Note 更新到最新版本。',
+            fr: "Veuillez mettre à jour Meow Note vers la dernière version sur l'App Store.",
+            ja: 'App Store で Meow Note を最新バージョンにアップデートしてください。',
           ),
+          style: _hand(15, ink),
         ),
         actions: [
           TextButton(
+            style: dark ? TextButton.styleFrom(foregroundColor: ink) : null,
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text(tr(context, '나중에', en: 'Later', zh: '稍后')),
+            child: Text(
+              tr(
+                context,
+                '나중에',
+                en: 'Later',
+                zh: '稍后',
+                fr: 'Plus tard',
+                ja: 'あとで',
+              ),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(
-              tr(context, '앱스토어 열기', en: 'Open App Store', zh: '打开 App Store'),
+              tr(
+                context,
+                '앱스토어 열기',
+                en: 'Open App Store',
+                zh: '打开 App Store',
+                fr: "Ouvrir l'App Store",
+                ja: 'App Store を開く',
+              ),
             ),
           ),
         ],
@@ -402,12 +422,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       backgroundColor: Colors.transparent,
       builder: (_) => StatefulBuilder(
         builder: (context, setSheet) => _Sheet(
-          title: tr(context, '더보기', en: 'More', zh: '更多'),
+          title: tr(
+            context,
+            '더보기',
+            en: 'More',
+            zh: '更多',
+            fr: 'Plus',
+            ja: 'その他',
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _SheetLabel(tr(context, '정렬하기', en: 'Sort by', zh: '排序方式')),
+              _SheetLabel(
+                appFont: true,
+                tr(
+                  context,
+                  '정렬하기',
+                  en: 'Sort by',
+                  zh: '排序方式',
+                  fr: 'Trier par',
+                  ja: '並べ替え',
+                ),
+              ),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -418,21 +455,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       '편집일',
                       en: 'Edited',
                       zh: '编辑日期',
+                      fr: 'Modifiée',
+                      ja: '編集日',
                     ),
                     BoardSort.created: tr(
                       context,
                       '생성일',
                       en: 'Created',
                       zh: '创建日期',
+                      fr: 'Créée',
+                      ja: '作成日',
                     ),
                     BoardSort.name: tr(
                       context,
                       '가나다·ABC',
                       en: 'ABC',
                       zh: '名称',
+                      fr: 'A-Z',
+                      ja: '名前順',
                     ),
                   }.entries)
                     _PickBox(
+                      appFont: true,
                       label: entry.value,
                       selected: _store.sort == entry.key,
                       onTap: () => setSheet(() => _store.setSort(entry.key)),
@@ -440,7 +484,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
               const SizedBox(height: 22),
-              _SheetLabel(tr(context, '정리하기', en: 'Organize', zh: '整理')),
+              _SheetLabel(
+                appFont: true,
+                tr(
+                  context,
+                  '정리하기',
+                  en: 'Organize',
+                  zh: '整理',
+                  fr: 'Organiser',
+                  ja: '整理',
+                ),
+              ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const SizedBox.square(
@@ -455,7 +509,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
                 // 앱 이름과 같은 둥근 서체로 적는다.
                 title: Text(
-                  tr(context, '메모 지우기', en: 'Delete memos', zh: '删除备忘录'),
+                  tr(
+                    context,
+                    '메모 지우기',
+                    en: 'Delete memos',
+                    zh: '删除备忘录',
+                    fr: 'Supprimer des notes',
+                    ja: 'メモを削除',
+                  ),
                   style: _round(16, _pickInk),
                 ),
                 subtitle: Text(
@@ -464,6 +525,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     '여러 장을 골라 한 번에',
                     en: 'Choose several at once',
                     zh: '一次选择多篇',
+                    fr: 'Plusieurs à la fois',
+                    ja: 'まとめて選ぶ',
                   ),
                   style: _round(13, _pickInk.withValues(alpha: .7)),
                 ),
@@ -482,7 +545,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
                 title: Text(
-                  tr(context, '폰트 변경하기', en: 'Change font', zh: '更改字体'),
+                  tr(
+                    context,
+                    '폰트 변경하기',
+                    en: 'Change font',
+                    zh: '更改字体',
+                    fr: 'Changer la police',
+                    ja: 'フォントを変更',
+                  ),
                   style: _round(16, _pickInk),
                 ),
                 trailing: const Icon(Icons.chevron_right_rounded),
@@ -508,7 +578,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         animation: _store,
         builder: (context, _) => SingleChildScrollView(
           child: _Sheet(
-            title: tr(context, '폰트 변경하기', en: 'Change font', zh: '更改字体'),
+            title: tr(
+              context,
+              '폰트 변경하기',
+              en: 'Change font',
+              zh: '更改字体',
+              fr: 'Changer la police',
+              ja: 'フォントを変更',
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -535,13 +612,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               '감자꽃체',
                               en: 'Gamja Flower',
                               zh: '土豆花体',
+                              fr: 'Gamja Flower',
+                              ja: 'カムジャコッ体',
                             ),
-                            'jua' => tr(context, '주아체', en: 'Jua', zh: '珠亚体'),
+                            'jua' => tr(
+                              context,
+                              '주아체',
+                              en: 'Jua',
+                              zh: '珠亚体',
+                              fr: 'Jua',
+                              ja: 'チュア体',
+                            ),
                             _ => tr(
                               context,
                               '기본 제공 폰트',
                               en: 'System font',
                               zh: '系统字体',
+                              fr: 'Police système',
+                              ja: '標準フォント',
                             ),
                           },
                           style: TextStyle(
@@ -556,9 +644,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         subtitle: Text(
                           tr(
                             context,
-                            '말랑 고양이 메모 · 오늘의 기분',
-                            en: "Malang Cat · Today's Mood",
-                            zh: '猫咪备忘录 · 今日心情',
+                            'Meow Note · 오늘의 기분',
+                            en: "Meow Note · Today's Mood",
+                            zh: 'Meow Note · 今日心情',
+                            fr: 'Meow Note · Humeur du jour',
+                            ja: 'Meow Note · 今日の気分',
                           ),
                           style: TextStyle(
                             fontFamily: option.key == 'system'
@@ -583,7 +673,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   alignment: Alignment.centerRight,
                   child: FilledButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: Text(tr(context, '완료', en: 'Done', zh: '完成')),
+                    child: Text(
+                      tr(
+                        context,
+                        '완료',
+                        en: 'Done',
+                        zh: '完成',
+                        fr: 'OK',
+                        ja: '完了',
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -618,15 +717,84 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             "'${board.title}' 을(를) 지웠어요",
             en: "Deleted '${board.title}'",
             zh: '已删除"${board.title}"',
+            fr: '« ${board.title} » supprimée',
+            ja: '「${board.title}」を削除しました',
           ),
         ),
         action: SnackBarAction(
-          label: tr(context, '되돌리기', en: 'Undo', zh: '撤销'),
+          label: tr(
+            context,
+            '되돌리기',
+            en: 'Undo',
+            zh: '撤销',
+            fr: 'Annuler',
+            ja: '元に戻す',
+          ),
           onPressed: () => setState(() {
             _store.restoreBoards([board.id]);
             _selectedBoardId = board.id;
           }),
         ),
+      ),
+    );
+  }
+
+  /// 파일이 있는 카드를 한 장씩 보낼 때, 다음 카드를 보낼지 묻는다.
+  Future<bool?> _askNextFileBoard(Board board, int index, int total) {
+    final name = board.title;
+    // 밤하늘(우주) 배경에서는 창도 남색 바탕에 밝은 글씨로 띄운다.
+    final dark = BackgroundTheme.byKey(_store.backgroundKey).isDark;
+    final ink = dark ? const Color(0xFFF3EEF6) : const Color(0xFF6B4F52);
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: dark ? const Color(0xFF15294D) : Colors.white,
+        surfaceTintColor: Colors.transparent,
+        title: Text(
+          tr(
+            context,
+            '사진·파일이 있는 메모 ($index/$total)',
+            en: 'Memo with attachments ($index/$total)',
+            zh: '带附件的备忘录 ($index/$total)',
+            fr: 'Note avec pièces jointes ($index/$total)',
+            ja: '添付のあるメモ ($index/$total)',
+          ),
+          style: _round(19, ink),
+        ),
+        content: Text(
+          tr(
+            context,
+            "'$name' 을(를) 파일과 함께 보내요.",
+            en: "Sending '$name' with its files.",
+            zh: '将连同文件发送“$name”。',
+            fr: "Envoi de « $name » avec ses fichiers.",
+            ja: '「$name」をファイルと一緒に送ります。',
+          ),
+          style: _hand(15, ink),
+        ),
+        actions: [
+          TextButton(
+            style: dark ? TextButton.styleFrom(foregroundColor: ink) : null,
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              tr(
+                context,
+                '그만하기',
+                en: 'Stop',
+                zh: '停止',
+                fr: 'Arrêter',
+                ja: 'やめる',
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              tr(context, '보내기', en: 'Send', zh: '发送', fr: 'Envoyer', ja: '送る'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -637,13 +805,63 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 받는 곳으로 '메모'를 고르는 마지막 한 걸음은 사람이 한다.
   Future<void> _exportAllBoards() async {
     try {
-      await shareAllBoards(
+      // 여러 카드의 파일을 한 번에 실으면 메모 앱이 공유 목록에서 빠진다.
+      // 한 장씩은 되므로 둘로 나눈다. 파일 없는 카드는 글 하나로 모아 한
+      // 번에, 파일이 있는 카드는 한 장씩 차례로 보낸다.
+      final live = boardsWithContent(
         _store.boards,
         _store.entriesOf,
-        attachmentsOf: _store.attachmentsOf,
-        fileOf: _store.attachmentFile,
-        locale: localeOf(context),
+        _store.attachmentsOf,
       );
+      final plain = live
+          .where((b) => _store.attachmentsOf(b.id).isEmpty)
+          .toList();
+      final withFiles = live
+          .where((b) => _store.attachmentsOf(b.id).isNotEmpty)
+          .toList();
+      var sent = live.isNotEmpty;
+      if (plain.isNotEmpty) {
+        await shareAllBoards(
+          plain,
+          _store.entriesOf,
+          attachmentsOf: _store.attachmentsOf,
+          locale: localeOf(context),
+        );
+      }
+      for (var i = 0; i < withFiles.length; i++) {
+        if (!mounted) return;
+        // 공유 창이 닫히자마자 다음 창을 띄우면 iOS 가 막는다. 사이에 한 번
+        // 묻고, 그만둘 길도 열어 둔다.
+        final go = await _askNextFileBoard(
+          withFiles[i],
+          i + 1,
+          withFiles.length,
+        );
+        if (go != true || !mounted) break;
+        await shareBoard(
+          withFiles[i],
+          _store.entriesOf(withFiles[i].id),
+          attachments: _store.attachmentsOf(withFiles[i].id),
+          fileOf: _store.attachmentFile,
+          locale: localeOf(context),
+        );
+      }
+      if (!sent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              tr(
+                context,
+                '내보낼 내용이 있는 메모가 없어요',
+                en: 'No memos with content to export',
+                zh: '没有可导出内容的备忘录',
+                fr: 'Aucune note avec du contenu à exporter',
+                ja: '書き出せる内容のあるメモがありません',
+              ),
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -654,6 +872,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               '보내지 못했어요: $e',
               en: 'Could not send: $e',
               zh: '发送失败：$e',
+              fr: 'Envoi impossible : $e',
+              ja: '送信できませんでした：$e',
             ),
           ),
         ),
@@ -672,17 +892,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       builder: (sheet) => StatefulBuilder(
         builder: (context, setSheet) => SingleChildScrollView(
           child: _Sheet(
-            title: tr(context, '메모 지우기', en: 'Delete memos', zh: '删除备忘录'),
+            title: tr(
+              context,
+              '메모 지우기',
+              en: 'Delete memos',
+              zh: '删除备忘录',
+              fr: 'Supprimer des notes',
+              ja: 'メモを削除',
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 _SheetLabel(
+                  appFont: true,
                   tr(
                     context,
                     '지울 메모를 고르세요',
                     en: 'Choose memos to delete',
                     zh: '选择要删除的备忘录',
+                    fr: 'Choisissez les notes à supprimer',
+                    ja: '削除するメモを選んでください',
                   ),
                 ),
                 Wrap(
@@ -691,6 +921,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   children: [
                     for (final board in _store.boards)
                       _PickBox(
+                        appFont: true,
                         label: board.title,
                         selected: picked.contains(board.id),
                         onTap: () => setSheet(() {
@@ -722,13 +953,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ? null
                         : () => Navigator.of(sheet).pop(picked.length),
                     child: Text(
+                      style: TextStyle(fontFamily: _store.fontFamily),
                       picked.isEmpty
-                          ? tr(context, '지우기', en: 'Delete', zh: '删除')
+                          ? tr(
+                              context,
+                              '지우기',
+                              en: 'Delete',
+                              zh: '删除',
+                              fr: 'Supprimer',
+                              ja: '削除',
+                            )
                           : tr(
                               context,
                               '${picked.length}장 지우기',
                               en: 'Delete ${picked.length}',
                               zh: '删除 ${picked.length} 篇',
+                              fr: 'Supprimer ${picked.length}',
+                              ja: '${picked.length}枚を削除',
                             ),
                     ),
                   ),
@@ -756,6 +997,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             '메모 $gone장을 지웠어요',
             en: 'Deleted $gone memos',
             zh: '已删除 $gone 篇备忘录',
+            fr: '$gone notes supprimées',
+            ja: 'メモ$gone枚を削除しました',
           ),
         ),
       ),
@@ -768,7 +1011,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       backgroundColor: Colors.transparent,
       builder: (_) => StatefulBuilder(
         builder: (context, setSheet) => _Sheet(
-          title: tr(context, '배경 고르기', en: 'Choose background', zh: '选择背景'),
+          title: tr(
+            context,
+            '배경 고르기',
+            en: 'Choose background',
+            zh: '选择背景',
+            fr: "Choisir l'arrière-plan",
+            ja: '背景を選ぶ',
+          ),
           child: Wrap(
             spacing: 12,
             runSpacing: 12,
@@ -851,11 +1101,31 @@ class _LibraryPageState extends State<_LibraryPage>
   List<(String, List<Board>)> _sections(List<Board> pinned, List<Board> loose) {
     final out = <(String, List<Board>)>[];
     if (pinned.isNotEmpty) {
-      out.add((tr(context, '고정된 메모', en: 'Pinned', zh: '已置顶'), pinned));
+      out.add((
+        tr(
+          context,
+          '고정된 메모',
+          en: 'Pinned',
+          zh: '已置顶',
+          fr: 'Épinglées',
+          ja: '固定したメモ',
+        ),
+        pinned,
+      ));
     }
     if (loose.isEmpty) return out;
     if (widget.sort == BoardSort.name) {
-      out.add((tr(context, '모든 메모', en: 'All memos', zh: '所有备忘录'), loose));
+      out.add((
+        tr(
+          context,
+          '모든 메모',
+          en: 'All memos',
+          zh: '所有备忘录',
+          fr: 'Toutes les notes',
+          ja: 'すべてのメモ',
+        ),
+        loose,
+      ));
       return out;
     }
     final locale = localeOf(context);
@@ -940,6 +1210,8 @@ class _LibraryPageState extends State<_LibraryPage>
                                     '메모를 길게 누르면 고정할 수 있어요',
                                     en: 'Press and hold a memo to pin it',
                                     zh: '长按备忘录即可置顶',
+                                    fr: 'Appuyez longuement sur une note pour l’épingler',
+                                    ja: 'メモを長押しすると固定できます',
                                   )
                                 : null,
                           ),
@@ -962,6 +1234,8 @@ class _LibraryPageState extends State<_LibraryPage>
                                 '찾는 메모가 없어요',
                                 en: 'No memos found',
                                 zh: '没有找到备忘录',
+                                fr: 'Aucune note trouvée',
+                                ja: '見つかるメモがありません',
                               ),
                               style: TextStyle(
                                 fontSize: _listSize(12),
@@ -1029,7 +1303,14 @@ class _SearchBox extends StatelessWidget {
                 isDense: true,
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 13),
-                hintText: tr(context, '메모 찾기', en: 'Search memos', zh: '搜索备忘录'),
+                hintText: tr(
+                  context,
+                  '메모 찾기',
+                  en: 'Search memos',
+                  zh: '搜索备忘录',
+                  fr: 'Rechercher des notes',
+                  ja: 'メモを検索',
+                ),
                 hintStyle: TextStyle(
                   fontSize: _listSize(14),
                   color: ink.withValues(alpha: .4),
@@ -1092,7 +1373,14 @@ class _PickerBox extends StatelessWidget {
               child: Text(
                 // 앱 이름을 여기에 못 박는다. 어느 메모를 펼쳐 두었는지는
                 // 아래 블록의 체크 표시가 알려 준다.
-                tr(context, '말랑 고양이 메모', en: 'Malang Cat', zh: '猫咪备忘录'),
+                tr(
+                  context,
+                  'Meow Note',
+                  en: 'Meow Note',
+                  zh: 'Meow Note',
+                  fr: 'Meow Note',
+                  ja: 'Meow Note',
+                ),
                 style: _round(
                   _listSize(MemoStore.instance.fontKey == 'gamja' ? 19 : 18),
                   p?.inkOn(bg.isDark) ?? bg.onBackground,
@@ -1344,7 +1632,14 @@ class _AddBoardChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final edge = Theme.of(context).colorScheme.primary;
     return Tooltip(
-      message: tr(context, '새 메모', en: 'New memo', zh: '新建备忘录'),
+      message: tr(
+        context,
+        '새 메모',
+        en: 'New memo',
+        zh: '新建备忘录',
+        fr: 'Nouvelle note',
+        ja: '新規メモ',
+      ),
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
@@ -1417,7 +1712,14 @@ class _MemoPage extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: IconButton(
               onPressed: onBack,
-              tooltip: tr(context, '목록', en: 'List', zh: '列表'),
+              tooltip: tr(
+                context,
+                '목록',
+                en: 'List',
+                zh: '列表',
+                fr: 'Liste',
+                ja: '一覧',
+              ),
               icon: const Icon(Icons.chevron_left_rounded, size: 26),
               color: bg.onBackground.withValues(alpha: .75),
             ),
@@ -1506,6 +1808,8 @@ class _Header extends StatelessWidget {
                     '좋은 생각이\n가득하길 ♡',
                     en: 'Wishing you\nbright ideas ♡',
                     zh: '愿好想法\n源源不断 ♡',
+                    fr: 'Plein de belles\nidées ♡',
+                    ja: 'すてきな考えが\nいっぱいありますように ♡',
                   ),
                   bg: bg,
                   align: TextAlign.right,
@@ -1523,6 +1827,8 @@ class _Header extends StatelessWidget {
                     '작은 하루도\n소중해요 ♡',
                     en: 'Every small day\nmatters ♡',
                     zh: '平凡的一天\n也很珍贵 ♡',
+                    fr: 'Chaque petit jour\ncompte ♡',
+                    ja: 'ささやかな一日も\n大切です ♡',
                   ),
                   bg: bg,
                   align: TextAlign.left,
@@ -1542,6 +1848,8 @@ class _Header extends StatelessWidget {
                     '배경 바꾸기',
                     en: 'Change background',
                     zh: '更换背景',
+                    fr: "Changer l'arrière-plan",
+                    ja: '背景を変える',
                   ),
                   bg: bg,
                   onTap: onPickBackground,
@@ -1549,14 +1857,28 @@ class _Header extends StatelessWidget {
                 const SizedBox(width: 6),
                 _TopAction(
                   icon: Icons.ios_share,
-                  tooltip: tr(context, '전체 내보내기', en: 'Export all', zh: '导出全部'),
+                  tooltip: tr(
+                    context,
+                    '전체 내보내기',
+                    en: 'Export all',
+                    zh: '导出全部',
+                    fr: 'Tout exporter',
+                    ja: 'すべて書き出す',
+                  ),
                   bg: bg,
                   onTap: onExport,
                 ),
                 const SizedBox(width: 6),
                 _TopAction(
                   icon: Icons.more_horiz_rounded,
-                  tooltip: tr(context, '더보기', en: 'More', zh: '更多'),
+                  tooltip: tr(
+                    context,
+                    '더보기',
+                    en: 'More',
+                    zh: '更多',
+                    fr: 'Plus',
+                    ja: 'その他',
+                  ),
                   bg: bg,
                   onTap: onSort,
                 ),
@@ -1847,6 +2169,8 @@ class _BoardCardState extends State<_BoardCard> {
                                           '이 카드 내보내기',
                                           en: 'Export this card',
                                           zh: '导出此卡片',
+                                          fr: 'Exporter cette carte',
+                                          ja: 'このカードを書き出す',
                                         ),
                                         ink: p.ink,
                                         onTap: widget.onExport,
@@ -1859,6 +2183,8 @@ class _BoardCardState extends State<_BoardCard> {
                                           '카드 꾸미기',
                                           en: 'Decorate card',
                                           zh: '装饰卡片',
+                                          fr: 'Personnaliser la carte',
+                                          ja: 'カードをデコる',
                                         ),
                                         ink: p.ink,
                                         onTap: widget.onOpenSettings,
@@ -1891,6 +2217,8 @@ class _BoardCardState extends State<_BoardCard> {
                               '${ymd(board.createdAt, localeOf(context))} 시작',
                               en: 'Started ${ymd(board.createdAt, localeOf(context))}',
                               zh: '${ymd(board.createdAt, localeOf(context))} 开始',
+                              fr: 'Débutée le ${ymd(board.createdAt, localeOf(context))}',
+                              ja: '${ymd(board.createdAt, localeOf(context))} に開始',
                             ),
                             style: TextStyle(
                               fontSize: 11.5,
@@ -1898,40 +2226,68 @@ class _BoardCardState extends State<_BoardCard> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          for (var i = 0; i < widget.entries.length; i++) ...[
-                            _EntryRow(
-                              key: ValueKey(widget.entries[i].id),
-                              entry: widget.entries[i],
-                              board: board,
-                              palette: p,
-                              autofocus:
-                                  widget.entries[i].id == widget.focus?.entryId,
-                              caret: widget.focus?.offset ?? 0,
-                              onEnter: (rest, caret) => widget.onEnter(
-                                widget.entries[i],
-                                rest,
-                                caret,
-                              ),
-                            ),
-                            // 이 줄 바로 아래에 넣어 둔 사진·동영상·파일.
-                            InlineAttachments(
-                              key: ValueKey('after-${widget.entries[i].id}'),
+                          for (var i = 0; i < widget.entries.length; i++)
+                            // 사진·동영상을 이 줄 위에 끌어다 놓으면 이 줄
+                            // 바로 아래로 옮겨 온다.
+                            AttachmentDropZone(
+                              key: ValueKey('zone-${widget.entries[i].id}'),
                               boardId: board.id,
                               entryId: widget.entries[i].id,
-                              ink: p.ink,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _EntryRow(
+                                    key: ValueKey(widget.entries[i].id),
+                                    entry: widget.entries[i],
+                                    board: board,
+                                    palette: p,
+                                    autofocus:
+                                        widget.entries[i].id ==
+                                        widget.focus?.entryId,
+                                    caret: widget.focus?.offset ?? 0,
+                                    onEnter: (rest, caret) => widget.onEnter(
+                                      widget.entries[i],
+                                      rest,
+                                      caret,
+                                    ),
+                                  ),
+                                  // 이 줄 바로 아래에 넣어 둔 사진·동영상·파일.
+                                  InlineAttachments(
+                                    key: ValueKey(
+                                      'after-${widget.entries[i].id}',
+                                    ),
+                                    boardId: board.id,
+                                    entryId: widget.entries[i].id,
+                                    ink: p.ink,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
                           // 놓인 줄이 없거나 지워진 첨부는 글 맨 끝에 둔다.
-                          InlineAttachments(
-                            key: ValueKey('end-${board.id}'),
+                          // 빈 괘선 쪽에 놓아도 맨 끝으로 간다.
+                          AttachmentDropZone(
+                            key: ValueKey('zone-end-${board.id}'),
                             boardId: board.id,
-                            ink: p.ink,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                InlineAttachments(
+                                  key: ValueKey('end-${board.id}'),
+                                  boardId: board.id,
+                                  ink: p.ink,
+                                ),
+                                for (
+                                  var i = widget.entries.length;
+                                  i < minRules;
+                                  i++
+                                )
+                                  // 컨셉아트처럼 빈 줄도 괘선으로 남겨 둔다. 여기엔
+                                  // 줄 앞 표시를 찍지 않는다 — 아직 만든 줄이
+                                  // 아니라 카드를 채우는 장식이다.
+                                  _EmptyRule(palette: p, onTap: widget.onAdd),
+                              ],
+                            ),
                           ),
-                          // 컨셉아트처럼 빈 줄도 괘선으로 남겨 둔다. 여기엔
-                          // 줄 앞 표시를 찍지 않는다 — 아직 만든 줄이 아니라
-                          // 카드를 채우는 장식이다.
-                          for (var i = widget.entries.length; i < minRules; i++)
-                            _EmptyRule(palette: p, onTap: widget.onAdd),
                         ],
                       ),
                     ),
@@ -2174,7 +2530,14 @@ class _EmptyRule extends StatelessWidget {
     // 카드에 + 단추가 없으므로, 빈 괘선을 누르는 것이 줄을 더하는 길이다.
     // 눈으로 보이지 않아도 손끝과 보이스오버가 찾을 수 있어야 한다.
     return Semantics(
-      label: tr(context, '줄 추가', en: 'Add line', zh: '添加一行'),
+      label: tr(
+        context,
+        '줄 추가',
+        en: 'Add line',
+        zh: '添加一行',
+        fr: 'Ajouter une ligne',
+        ja: '行を追加',
+      ),
       button: true,
       child: InkWell(
         onTap: onTap,
@@ -2530,6 +2893,8 @@ class _LinkedTextState extends State<_LinkedText> {
               '주소를 열지 못했어요',
               en: 'Could not open the link',
               zh: '无法打开链接',
+              fr: "Impossible d'ouvrir le lien",
+              ja: 'リンクを開けませんでした',
             ),
           ),
         ),
@@ -2660,6 +3025,8 @@ class _Footer extends StatelessWidget {
                 '오늘도\n말랑한 하루 ♡',
                 en: 'A soft\nday today ♡',
                 zh: '今天也是\n软萌的一天 ♡',
+                fr: 'Encore une\njournée douce ♡',
+                ja: '今日も\nふんわりした一日 ♡',
               ),
               bg: bg,
               align: TextAlign.left,
@@ -2676,6 +3043,8 @@ class _Footer extends StatelessWidget {
                 '행복은\n언제나 여기 있어 ♡',
                 en: 'Happiness is\nalways right here ♡',
                 zh: '幸福\n一直都在 ♡',
+                fr: 'Le bonheur est\ntoujours ici ♡',
+                ja: '幸せは\nいつもここにある ♡',
               ),
               bg: bg,
               align: TextAlign.right,
@@ -2723,7 +3092,14 @@ class _Sheet extends StatelessWidget {
                     ),
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      tooltip: tr(context, '닫기', en: 'Close', zh: '关闭'),
+                      tooltip: tr(
+                        context,
+                        '닫기',
+                        en: 'Close',
+                        zh: '关闭',
+                        fr: 'Fermer',
+                        ja: '閉じる',
+                      ),
                       visualDensity: VisualDensity.compact,
                       icon: const Icon(Icons.close_rounded, size: 20),
                       color: const Color(0xFF6B4F52),
@@ -2787,7 +3163,10 @@ class _BackgroundSwatch extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             theme.labelIn(localeOf(context)),
-            style: const TextStyle(fontSize: 11.5),
+            style: TextStyle(
+              fontFamily: MemoStore.instance.fontFamily,
+              fontSize: 11.5,
+            ),
           ),
         ],
       ),
@@ -2825,23 +3204,43 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
       ),
       child: SingleChildScrollView(
         child: _Sheet(
-          title: tr(context, '카드 꾸미기', en: 'Decorate card', zh: '装饰卡片'),
+          title: tr(
+            context,
+            '카드 꾸미기',
+            en: 'Decorate card',
+            zh: '装饰卡片',
+            fr: 'Personnaliser la carte',
+            ja: 'カードをデコる',
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _SheetLabel(tr(context, '제목', en: 'Title', zh: '标题')),
+              _SheetLabel(
+                appFont: true,
+                tr(
+                  context,
+                  '제목',
+                  en: 'Title',
+                  zh: '标题',
+                  fr: 'Titre',
+                  ja: 'タイトル',
+                ),
+              ),
               _SheetField(
                 controller: _title,
                 onChanged: (v) => _store.updateBoard(board.id, title: v),
               ),
               const SizedBox(height: 14),
               _SheetLabel(
+                appFont: true,
                 tr(
                   context,
                   '한 줄 설명 (선택)',
                   en: 'One-line description (optional)',
                   zh: '一行简介（可选）',
+                  fr: 'Description en une ligne (facultatif)',
+                  ja: 'ひとこと説明（任意）',
                 ),
               ),
               _SheetField(
@@ -2849,7 +3248,17 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                 onChanged: (v) => _store.updateBoard(board.id, subtitle: v),
               ),
               const SizedBox(height: 20),
-              _SheetLabel(tr(context, '카드 종류', en: 'Card type', zh: '卡片类型')),
+              _SheetLabel(
+                appFont: true,
+                tr(
+                  context,
+                  '카드 종류',
+                  en: 'Card type',
+                  zh: '卡片类型',
+                  fr: 'Type de carte',
+                  ja: 'カードの種類',
+                ),
+              ),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -2860,24 +3269,31 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                     BoardKind.hearts: '하트',
                   }.entries)
                     _PickBox(
+                      appFont: true,
                       label: switch (kind.key) {
                         BoardKind.note => tr(
                           context,
                           '메모',
                           en: 'Note',
                           zh: '备忘录',
+                          fr: 'Note',
+                          ja: 'メモ',
                         ),
                         BoardKind.checklist => tr(
                           context,
                           '체크리스트',
                           en: 'Checklist',
                           zh: '清单',
+                          fr: 'Liste de tâches',
+                          ja: 'チェックリスト',
                         ),
                         BoardKind.hearts => tr(
                           context,
                           '하트',
                           en: 'Hearts',
                           zh: '爱心',
+                          fr: 'Cœurs',
+                          ja: 'ハート',
                         ),
                       },
                       selected: board.kind == kind.key,
@@ -2888,7 +3304,17 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                 ],
               ),
               const SizedBox(height: 20),
-              _SheetLabel(tr(context, '카드 색', en: 'Card color', zh: '卡片颜色')),
+              _SheetLabel(
+                appFont: true,
+                tr(
+                  context,
+                  '카드 색',
+                  en: 'Card color',
+                  zh: '卡片颜色',
+                  fr: 'Couleur de la carte',
+                  ja: 'カードの色',
+                ),
+              ),
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -2923,7 +3349,15 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
               ),
               const SizedBox(height: 20),
               _SheetLabel(
-                tr(context, '제목 옆 표시', en: 'Badge next to title', zh: '标题旁的标记'),
+                appFont: true,
+                tr(
+                  context,
+                  '제목 옆 표시',
+                  en: 'Badge next to title',
+                  zh: '标题旁的标记',
+                  fr: 'Icône à côté du titre',
+                  ja: 'タイトル横のマーク',
+                ),
               ),
               Wrap(
                 spacing: 8,
@@ -2963,7 +3397,10 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                 ],
               ),
               const SizedBox(height: 20),
-              _SheetLabel(tr(context, '고양이', en: 'Cat', zh: '猫咪')),
+              _SheetLabel(
+                appFont: true,
+                tr(context, '고양이', en: 'Cat', zh: '猫咪', fr: 'Chat', ja: 'ねこ'),
+              ),
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
@@ -2983,7 +3420,15 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
               ),
               const SizedBox(height: 20),
               _SheetLabel(
-                tr(context, '고양이 자리', en: 'Cat position', zh: '猫咪位置'),
+                appFont: true,
+                tr(
+                  context,
+                  '고양이 자리',
+                  en: 'Cat position',
+                  zh: '猫咪位置',
+                  fr: 'Position du chat',
+                  ja: 'ねこの位置',
+                ),
               ),
               Wrap(
                 spacing: 8,
@@ -2997,33 +3442,48 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                     CatPose.none: '없음',
                   }.entries)
                     _PickBox(
+                      appFont: true,
                       label: switch (entry.key) {
                         CatPose.peekTop => tr(
                           context,
                           '위에 걸터앉기',
                           en: 'Sit on top',
                           zh: '趴在顶部',
+                          fr: 'Assis dessus',
+                          ja: '上に座る',
                         ),
                         CatPose.peekBottom => tr(
                           context,
                           '오른쪽 아래',
                           en: 'Bottom right',
                           zh: '右下角',
+                          fr: 'En bas à droite',
+                          ja: '右下',
                         ),
                         CatPose.peekLeft => tr(
                           context,
                           '왼쪽 아래',
                           en: 'Bottom left',
                           zh: '左下角',
+                          fr: 'En bas à gauche',
+                          ja: '左下',
                         ),
                         CatPose.watermark => tr(
                           context,
                           '옅게 깔기',
                           en: 'Faint backdrop',
                           zh: '淡淡铺底',
+                          fr: 'En filigrane',
+                          ja: 'うっすら敷く',
                         ),
-                        CatPose.none ||
-                        CatPose.trio => tr(context, '없음', en: 'None', zh: '无'),
+                        CatPose.none || CatPose.trio => tr(
+                          context,
+                          '없음',
+                          en: 'None',
+                          zh: '无',
+                          fr: 'Aucun',
+                          ja: 'なし',
+                        ),
                       },
                       selected: board.pose == entry.key,
                       onTap: () => setState(
@@ -3037,7 +3497,10 @@ class _BoardSettingsSheetState extends State<_BoardSettingsSheet> {
                 alignment: Alignment.centerRight,
                 child: FilledButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text(tr(context, '완료', en: 'Done', zh: '完成')),
+                  child: Text(
+                    tr(context, '완료', en: 'Done', zh: '完成', fr: 'OK', ja: '完了'),
+                    style: TextStyle(fontFamily: _store.fontFamily),
+                  ),
                 ),
               ),
             ],
@@ -3093,7 +3556,14 @@ class _CatPick extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(height: 40, child: Center(child: child)),
-          Text(label, style: const TextStyle(fontSize: 11, color: _pickInk)),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: MemoStore.instance.fontFamily,
+              fontSize: 11,
+              color: _pickInk,
+            ),
+          ),
         ],
       ),
     ),
@@ -3106,9 +3576,11 @@ class _PickBox extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.appFont = false,
   });
 
   final String label;
+  final bool appFont;
   final bool selected;
   final VoidCallback onTap;
 
@@ -3132,7 +3604,14 @@ class _PickBox extends StatelessWidget {
               const _PickedCheck(size: 15),
               const SizedBox(width: 6),
             ],
-            Text(label, style: const TextStyle(fontSize: 14, color: _pickInk)),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: appFont ? MemoStore.instance.fontFamily : null,
+                fontSize: 14,
+                color: _pickInk,
+              ),
+            ),
           ],
         ),
       ),
@@ -3157,7 +3636,11 @@ class _SheetField extends StatelessWidget {
     return TextField(
       controller: controller,
       onChanged: onChanged,
-      style: const TextStyle(fontSize: 15, color: _pickInk),
+      style: TextStyle(
+        fontFamily: MemoStore.instance.fontFamily,
+        fontSize: 15,
+        color: _pickInk,
+      ),
       decoration: const InputDecoration(
         filled: true,
         fillColor: _pickedFill,
@@ -3172,9 +3655,12 @@ class _SheetField extends StatelessWidget {
 }
 
 class _SheetLabel extends StatelessWidget {
-  const _SheetLabel(this.text);
+  const _SheetLabel(this.text, {this.appFont = false});
 
   final String text;
+
+  /// 고른 폰트로 적을지. 더보기 창처럼 폰트를 따르는 창에서만 켠다.
+  final bool appFont;
 
   @override
   Widget build(BuildContext context) {
@@ -3183,6 +3669,7 @@ class _SheetLabel extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(
+          fontFamily: appFont ? MemoStore.instance.fontFamily : null,
           fontSize: 12.5,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),

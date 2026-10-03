@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'bottom_bar_surface.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:video_player/video_player.dart';
 
@@ -66,10 +69,24 @@ void _removeAttachment(BuildContext context, Attachment attachment) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(
-        tr(context, '첨부를 삭제했어요', en: 'Attachment removed', zh: '已删除附件'),
+        tr(
+          context,
+          '첨부를 삭제했어요',
+          en: 'Attachment removed',
+          zh: '已删除附件',
+          fr: 'Pièce jointe supprimée',
+          ja: '添付を削除しました',
+        ),
       ),
       action: SnackBarAction(
-        label: tr(context, '되돌리기', en: 'Undo', zh: '撤销'),
+        label: tr(
+          context,
+          '되돌리기',
+          en: 'Undo',
+          zh: '撤销',
+          fr: 'Annuler',
+          ja: '元に戻す',
+        ),
         onPressed: () => store.setAttachmentDeleted(attachment, false),
       ),
     ),
@@ -89,6 +106,8 @@ Future<void> _openOutside(BuildContext context, Attachment attachment) async {
             '첨부 파일을 찾을 수 없어요. 다시 첨부해 주세요.',
             en: "Couldn't find the attached file. Please attach it again.",
             zh: '找不到附件文件，请重新添加。',
+            fr: 'Fichier joint introuvable. Veuillez le rajouter.',
+            ja: '添付ファイルが見つかりません。もう一度添付してください。',
           ),
         );
       }
@@ -103,6 +122,8 @@ Future<void> _openOutside(BuildContext context, Attachment attachment) async {
           '이 파일을 열 수 있는 앱을 찾지 못했어요.',
           en: 'No app found to open this file.',
           zh: '找不到可以打开此文件的应用。',
+          fr: 'Aucune app ne peut ouvrir ce fichier.',
+          ja: 'このファイルを開けるアプリが見つかりませんでした。',
         ),
       );
     }
@@ -115,6 +136,8 @@ Future<void> _openOutside(BuildContext context, Attachment attachment) async {
           '파일을 열지 못했어요. 잠시 후 다시 시도해 주세요.',
           en: 'Could not open the file. Please try again shortly.',
           zh: '无法打开文件，请稍后再试。',
+          fr: "Impossible d'ouvrir le fichier. Réessayez dans un instant.",
+          ja: 'ファイルを開けませんでした。しばらくしてからもう一度お試しください。',
         ),
       );
     }
@@ -148,6 +171,8 @@ Future<void> _openPhoto(BuildContext context, Attachment attachment) {
                     '다른 앱으로 열기',
                     en: 'Open in another app',
                     zh: '用其他应用打开',
+                    fr: 'Ouvrir dans une autre app',
+                    ja: '別のアプリで開く',
                   ),
                 ),
               ),
@@ -159,49 +184,183 @@ Future<void> _openPhoto(BuildContext context, Attachment attachment) {
   );
 }
 
+/// 첨부를 끌어다 놓을 수 있는 자리. 줄 하나와 그 아래 첨부들을 감싸, 그 위에
+/// 놓으면 첨부가 이 줄 바로 아래로 옮겨 온다. [entryId] 가 null 이면 글 맨 끝이다.
+class AttachmentDropZone extends StatelessWidget {
+  const AttachmentDropZone({
+    super.key,
+    required this.boardId,
+    required this.child,
+    this.entryId,
+  });
+
+  final String boardId;
+  final String? entryId;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => DragTarget<Attachment>(
+    hitTestBehavior: HitTestBehavior.opaque,
+    onWillAcceptWithDetails: (d) => d.data.boardId == boardId,
+    onAcceptWithDetails: (d) =>
+        MemoStore.instance.moveAttachment(d.data, entryId),
+    builder: (context, candidate, _) => DecoratedBox(
+      // 놓일 자리에는 아래쪽에 가는 줄을 그어 알린다.
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            width: 2,
+            color: candidate.isEmpty
+                ? Colors.transparent
+                : Theme.of(context).colorScheme.primary,
+          ),
+        ),
+      ),
+      child: child,
+    ),
+  );
+}
+
 /// 사진이나 동영상 한 장. 모서리 손잡이로 크기를 바꾸고 오른쪽 위 ✕ 로 지운다.
-class _MediaBlock extends StatelessWidget {
+/// 꾹 눌러 끌면 다른 줄 아래로 옮길 수 있다.
+class _MediaBlock extends StatefulWidget {
   const _MediaBlock({super.key, required this.attachment, required this.ink});
 
   final Attachment attachment;
   final Color ink;
 
   @override
+  State<_MediaBlock> createState() => _MediaBlockState();
+}
+
+class _MediaBlockState extends State<_MediaBlock> {
+  Timer? _scroller;
+  Offset? _finger;
+
+  /// 끄는 손가락이 화면 위·아래 끝에 가까우면 글을 따라 밀어 준다.
+  void _startAutoScroll() {
+    _scroller?.cancel();
+    _scroller = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      final finger = _finger;
+      if (finger == null || !mounted) return;
+      final scrollable = Scrollable.maybeOf(context, axis: Axis.vertical);
+      final box = scrollable?.context.findRenderObject();
+      if (scrollable == null || box is! RenderBox) return;
+      const edge = 80.0;
+      final y = box.globalToLocal(finger).dy;
+      final double step;
+      if (y < edge) {
+        step = -(edge - y) / edge * 14;
+      } else if (y > box.size.height - edge) {
+        step = (y - (box.size.height - edge)) / edge * 14;
+      } else {
+        return;
+      }
+      final p = scrollable.position;
+      p.jumpTo((p.pixels + step).clamp(p.minScrollExtent, p.maxScrollExtent));
+    });
+  }
+
+  void _stopAutoScroll() {
+    _scroller?.cancel();
+    _scroller = null;
+    _finger = null;
+  }
+
+  @override
+  void dispose() {
+    _scroller?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final attachment = widget.attachment;
+    final ink = widget.ink;
     final store = MemoStore.instance;
     return ResizableBlock(
       fraction: attachment.widthFraction,
       onResized: (v) => store.setAttachmentLayout(attachment, widthFraction: v),
-      builder: (context, width, max) => ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Stack(
-          children: [
-            if (attachment.kind == 'image')
-              _Photo(
-                attachment: attachment,
-                width: width,
-                maxWidth: max,
-                ink: ink,
-              )
-            else
-              _Clip(attachment: attachment, width: width, ink: ink),
-            Positioned(
-              top: 4,
-              right: 4,
-              child: _RoundAction(
-                icon: Icons.close_rounded,
-                label: tr(
-                  context,
-                  '${attachment.name} 삭제',
-                  en: 'Delete ${attachment.name}',
-                  zh: '删除${attachment.name}',
+      builder: (context, width, max) {
+        final body = ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
+            children: [
+              if (attachment.kind == 'image')
+                _Photo(
+                  attachment: attachment,
+                  width: width,
+                  maxWidth: max,
+                  ink: ink,
+                )
+              else
+                _Clip(attachment: attachment, width: width, ink: ink),
+              Positioned(
+                top: 4,
+                right: 4,
+                child: _RoundAction(
+                  icon: Icons.close_rounded,
+                  label: tr(
+                    context,
+                    '${attachment.name} 삭제',
+                    en: 'Delete ${attachment.name}',
+                    zh: '删除${attachment.name}',
+                    fr: 'Supprimer ${attachment.name}',
+                    ja: '${attachment.name}を削除',
+                  ),
+                  onTap: () => _removeAttachment(context, attachment),
                 ),
-                onTap: () => _removeAttachment(context, attachment),
+              ),
+            ],
+          ),
+        );
+        return LongPressDraggable<Attachment>(
+          data: attachment,
+          onDragStarted: () {
+            HapticFeedback.mediumImpact();
+            _startAutoScroll();
+          },
+          onDragUpdate: (d) => _finger = d.globalPosition,
+          onDragEnd: (_) => _stopAutoScroll(),
+          // 손가락 밑에 작게 비친 그림을 들고 다닌다. 동영상은 다시 풀지
+          // 않고 어두운 판으로 갈음한다.
+          feedback: Material(
+            color: Colors.transparent,
+            child: Opacity(
+              opacity: .8,
+              child: SizedBox(
+                width: width,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: attachment.kind == 'image'
+                      ? Image.file(
+                          store.attachmentFile(attachment),
+                          width: width,
+                          fit: BoxFit.fitWidth,
+                          cacheWidth:
+                              (width * MediaQuery.devicePixelRatioOf(context))
+                                  .round(),
+                          errorBuilder: (_, _, _) =>
+                              _Missing(width: width, ink: ink),
+                        )
+                      : Container(
+                          width: width,
+                          height: width * 9 / 16,
+                          color: Colors.black87,
+                          child: const Icon(
+                            Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 40,
+                          ),
+                        ),
+                ),
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+          childWhenDragging: Opacity(opacity: .3, child: body),
+          child: body,
+        );
+      },
     );
   }
 }
@@ -397,6 +556,8 @@ class _ClipState extends State<_Clip> {
                     '${widget.attachment.name} 크게 보기',
                     en: 'View ${widget.attachment.name} full screen',
                     zh: '全屏查看${widget.attachment.name}',
+                    fr: 'Afficher ${widget.attachment.name} en plein écran',
+                    ja: '${widget.attachment.name}を大きく表示',
                   ),
                   onTap: () => _openOutside(context, widget.attachment),
                 ),
@@ -463,6 +624,8 @@ class _FileCard extends StatelessWidget {
                 '${attachment.name} 첨부 삭제',
                 en: 'Remove ${attachment.name}',
                 zh: '移除附件${attachment.name}',
+                fr: 'Retirer ${attachment.name}',
+                ja: '${attachment.name}の添付を削除',
               ),
               onPressed: () => _removeAttachment(context, attachment),
               icon: Icon(Icons.close_rounded, size: 18, color: ink),
@@ -547,12 +710,16 @@ class _MemoAttachmentBarState extends State<MemoAttachmentBar> {
                   '첨부하지 못했어요. 파일을 다시 선택해 주세요.',
                   en: 'Could not attach. Please choose the files again.',
                   zh: '添加失败，请重新选择文件。',
+                  fr: 'Ajout impossible. Veuillez choisir à nouveau les fichiers.',
+                  ja: '添付できませんでした。ファイルを選び直してください。',
                 )
               : tr(
                   context,
                   '$added개를 첨부했어요. 나머지 파일은 다시 선택해 주세요.',
                   en: 'Attached $added. Please choose the rest again.',
                   zh: '已添加 $added 个，请重新选择其余文件。',
+                  fr: '$added ajouté(s). Veuillez choisir à nouveau les autres.',
+                  ja: '$added件を添付しました。残りのファイルは選び直してください。',
                 ),
         );
       }
@@ -598,17 +765,38 @@ class _MemoAttachmentBarState extends State<MemoAttachmentBar> {
           else
             action(
               Icons.photo_library_outlined,
-              tr(context, '사진·동영상 첨부', en: 'Add photo or video', zh: '添加照片/视频'),
+              tr(
+                context,
+                '사진·동영상 첨부',
+                en: 'Add photo or video',
+                zh: '添加照片/视频',
+                fr: 'Ajouter une photo ou une vidéo',
+                ja: '写真・動画を添付',
+              ),
               () => _pick(FileType.media),
             ),
           action(
             Icons.attach_file_rounded,
-            tr(context, '파일 첨부', en: 'Add file', zh: '添加文件'),
+            tr(
+              context,
+              '파일 첨부',
+              en: 'Add file',
+              zh: '添加文件',
+              fr: 'Ajouter un fichier',
+              ja: 'ファイルを添付',
+            ),
             () => _pick(FileType.any),
           ),
           action(
             Icons.delete_outline_rounded,
-            tr(context, '메모 삭제', en: 'Delete memo', zh: '删除备忘录'),
+            tr(
+              context,
+              '메모 삭제',
+              en: 'Delete memo',
+              zh: '删除备忘录',
+              fr: 'Supprimer la note',
+              ja: 'メモを削除',
+            ),
             () {
               FocusManager.instance.primaryFocus?.unfocus();
               widget.onDelete();

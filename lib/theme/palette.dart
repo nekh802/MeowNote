@@ -339,18 +339,18 @@ class BackgroundTheme {
   static BackgroundTheme byKey(String key) =>
       all.firstWhere((b) => b.key == key, orElse: () => coolWhite);
 
-  /// 배경 이름의 영어·중국어. 키는 [key] 와 같다.
-  static const _names = <String, (String, String)>{
-    'paper': ('Paper', '纸张'),
-    'cream': ('Cream', '奶油色'),
-    'peach': ('Peach', '桃色'),
-    'lavender': ('Lavender', '薰衣草'),
-    'mint': ('Mint', '薄荷绿'),
-    'sky': ('Sky', '天空蓝'),
-    'cocoa': ('Cocoa', '可可色'),
-    'night': ('Night Sky', '夜空'),
-    'white': ('Warm White', '暖白'),
-    'coolWhite': ('Cool White', '冷白'),
+  /// 배경 이름의 영어·중국어·프랑스어·일본어. 키는 [key] 와 같다.
+  static const _names = <String, (String, String, String, String)>{
+    'paper': ('Paper', '纸张', 'Papier', '紙'),
+    'cream': ('Cream', '奶油色', 'Crème', 'クリーム'),
+    'peach': ('Peach', '桃色', 'Pêche', 'ピーチ'),
+    'lavender': ('Lavender', '薰衣草', 'Lavande', 'ラベンダー'),
+    'mint': ('Mint', '薄荷绿', 'Menthe', 'ミント'),
+    'sky': ('Sky', '天空蓝', 'Ciel', 'スカイ'),
+    'cocoa': ('Cocoa', '可可色', 'Cacao', 'ココア'),
+    'night': ('Night Sky', '夜空', 'Ciel nocturne', '夜空'),
+    'white': ('Warm White', '暖白', 'Blanc chaud', 'ウォームホワイト'),
+    'coolWhite': ('Cool White', '冷白', 'Blanc froid', 'クールホワイト'),
   };
 
   /// [label] 을 기기 언어로 옮긴다.
@@ -358,6 +358,8 @@ class BackgroundTheme {
     AppLocale.ko => label,
     AppLocale.en => _names[key]?.$1 ?? label,
     AppLocale.zh => _names[key]?.$2 ?? label,
+    AppLocale.fr => _names[key]?.$3 ?? label,
+    AppLocale.ja => _names[key]?.$4 ?? label,
   };
 }
 

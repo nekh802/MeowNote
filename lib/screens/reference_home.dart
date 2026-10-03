@@ -106,7 +106,7 @@ class _ReferenceHomeState extends State<ReferenceHome>
             height: 115,
             child: Semantics(
               button: true,
-              label: '말랑 고양이 메모, 꾸미기 및 백업',
+              label: 'Meow Note, 꾸미기 및 백업',
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onLongPress: customize,

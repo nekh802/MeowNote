@@ -11,9 +11,30 @@ import 'when.dart';
 /// 여기서는 어느 줄 아래에 있던 것인지만 알린다.
 String attachmentLine(Attachment a, [AppLocale locale = AppLocale.ko]) {
   final label = switch (a.kind) {
-    'image' => trLocale(locale, '사진', en: 'Photo', zh: '照片'),
-    'video' => trLocale(locale, '동영상', en: 'Video', zh: '视频'),
-    _ => trLocale(locale, '파일', en: 'File', zh: '文件'),
+    'image' => trLocale(
+      locale,
+      '사진',
+      en: 'Photo',
+      zh: '照片',
+      fr: 'Photo',
+      ja: '写真',
+    ),
+    'video' => trLocale(
+      locale,
+      '동영상',
+      en: 'Video',
+      zh: '视频',
+      fr: 'Vidéo',
+      ja: '動画',
+    ),
+    _ => trLocale(
+      locale,
+      '파일',
+      en: 'File',
+      zh: '文件',
+      fr: 'Fichier',
+      ja: 'ファイル',
+    ),
   };
   return '[$label] ${a.name}';
 }
@@ -33,7 +54,7 @@ String boardAsText(
   final buf = StringBuffer(board.title);
   if (board.subtitle.isNotEmpty) buf.write('\n${board.subtitle}');
   buf.write(
-    '\n${trLocale(locale, '${ymdhm(board.createdAt, locale)}에 시작한 메모', en: 'Started ${ymdhm(board.createdAt, locale)}', zh: '${ymdhm(board.createdAt, locale)} 开始的备忘录')}',
+    '\n${trLocale(locale, '${ymdhm(board.createdAt, locale)}에 시작한 메모', en: 'Started ${ymdhm(board.createdAt, locale)}', zh: '${ymdhm(board.createdAt, locale)} 开始的备忘录', fr: 'Note débutée le ${ymdhm(board.createdAt, locale)}', ja: '${ymdhm(board.createdAt, locale)}に始めたメモ')}',
   );
 
   final live = entries.map((e) => e.id).toSet();
@@ -43,7 +64,7 @@ String boardAsText(
   final written = entries.where((e) => e.text.trim().isNotEmpty).toList();
   if (written.isEmpty && attachments.isEmpty) {
     buf.write(
-      '\n\n(${trLocale(locale, '아직 적은 것이 없어요', en: 'Nothing written yet', zh: '还没有写下任何内容')})',
+      '\n\n(${trLocale(locale, '아직 적은 것이 없어요', en: 'Nothing written yet', zh: '还没有写下任何内容', fr: 'Rien d’écrit pour le moment', ja: 'まだ何も書かれていません')})',
     );
     return buf.toString();
   }
@@ -144,6 +165,20 @@ Future<void> shareBoard(
   );
 }
 
+/// 내보낼 것이 있는 카드만 추린다. 적은 줄도 첨부도 없는 카드는 '아직 적은
+/// 것이 없어요' 한 줄만 남아 받는 쪽을 어지럽히기만 한다.
+List<Board> boardsWithContent(
+  List<Board> boards,
+  List<Entry> Function(String boardId) entriesOf,
+  List<Attachment> Function(String boardId)? attachmentsOf,
+) => boards
+    .where(
+      (b) =>
+          entriesOf(b.id).any((e) => e.text.trim().isNotEmpty) ||
+          (attachmentsOf?.call(b.id).isNotEmpty ?? false),
+    )
+    .toList();
+
 /// 가진 메모를 모두 한 덩이 글로 옮긴다.
 ///
 /// 애플은 다른 앱이 메모 앱에 글을 써 넣는 길을 열어 두지 않았다. 그래서
@@ -155,13 +190,24 @@ String allBoardsAsText(
   List<Attachment> Function(String boardId)? attachmentsOf,
   AppLocale locale = AppLocale.ko,
 }) {
-  final buf = StringBuffer(trLocale(locale, '말랑 고양이 메모', en: 'Malang Cat', zh: '猫咪备忘录'))
-    ..write(
-      '\n${trLocale(locale, '${ymdhm(DateTime.now(), locale)} 내보냄', en: 'Exported ${ymdhm(DateTime.now(), locale)}', zh: '${ymdhm(DateTime.now(), locale)} 导出')}',
-    )
-    ..write(
-      '\n${trLocale(locale, '메모 ${boards.length}장', en: '${boards.length} memos', zh: '${boards.length} 篇备忘录')}',
-    );
+  boards = boardsWithContent(boards, entriesOf, attachmentsOf);
+  final buf =
+      StringBuffer(
+          trLocale(
+            locale,
+            'Meow Note',
+            en: 'Meow Note',
+            zh: 'Meow Note',
+            fr: 'Meow Note',
+            ja: 'Meow Note',
+          ),
+        )
+        ..write(
+          '\n${trLocale(locale, '${ymdhm(DateTime.now(), locale)} 내보냄', en: 'Exported ${ymdhm(DateTime.now(), locale)}', zh: '${ymdhm(DateTime.now(), locale)} 导出', fr: 'Exporté le ${ymdhm(DateTime.now(), locale)}', ja: '${ymdhm(DateTime.now(), locale)} に書き出し')}',
+        )
+        ..write(
+          '\n${trLocale(locale, '메모 ${boards.length}장', en: '${boards.length} memos', zh: '${boards.length} 篇备忘录', fr: '${boards.length} notes', ja: 'メモ${boards.length}枚')}',
+        );
   for (final board in boards) {
     buf.write('\n\n────────\n');
     buf.write(
@@ -176,13 +222,16 @@ String allBoardsAsText(
   return buf.toString();
 }
 
-Future<void> shareAllBoards(
+/// 보낼 카드가 하나도 없으면 공유 창을 열지 않고 false 를 돌려준다.
+Future<bool> shareAllBoards(
   List<Board> boards,
   List<Entry> Function(String boardId) entriesOf, {
   List<Attachment> Function(String boardId)? attachmentsOf,
   File Function(Attachment)? fileOf,
   AppLocale locale = AppLocale.ko,
-}) {
+}) async {
+  boards = boardsWithContent(boards, entriesOf, attachmentsOf);
+  if (boards.isEmpty) return false;
   final all = <Attachment>[
     if (attachmentsOf != null)
       for (final b in boards) ...attachmentsOf(b.id),
@@ -190,7 +239,7 @@ Future<void> shareAllBoards(
   final sent = fileOf == null
       ? (files: <XFile>[], names: <String>[])
       : shareFilesOf(all, fileOf);
-  return SharePlus.instance.share(
+  await SharePlus.instance.share(
     ShareParams(
       text: allBoardsAsText(
         boards,
@@ -198,9 +247,17 @@ Future<void> shareAllBoards(
         attachmentsOf: attachmentsOf,
         locale: locale,
       ),
-      subject: trLocale(locale, '말랑 고양이 메모', en: 'Malang Cat', zh: '猫咪备忘录'),
+      subject: trLocale(
+        locale,
+        'Meow Note',
+        en: 'Meow Note',
+        zh: 'Meow Note',
+        fr: 'Meow Note',
+        ja: 'Meow Note',
+      ),
       files: sent.files.isEmpty ? null : sent.files,
       fileNameOverrides: sent.files.isEmpty ? null : sent.names,
     ),
   );
+  return true;
 }
