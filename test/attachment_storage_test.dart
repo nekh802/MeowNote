@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:malang_cat/data/memo_store.dart';
-import 'package:malang_cat/models/attachment.dart';
+import 'package:meow_note/data/memo_store.dart';
+import 'package:meow_note/models/attachment.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -13,7 +13,7 @@ void main() {
     'imports duplicate names separately, persists, removes and restores',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'malang-attachments-',
+        'meow-attachments-',
       );
       const channel = MethodChannel('plugins.flutter.io/path_provider');
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

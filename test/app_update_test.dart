@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:malang_cat/data/app_update.dart';
+import 'package:meow_note/data/app_update.dart';
 
 void main() {
   test('10 이 9 보다 새 판이다 — 글자 순서로 견주지 않는다', () {
@@ -20,7 +20,7 @@ void main() {
 {"resultCount":1,"results":[{
   "version":"1.10.0",
   "trackId":6812345678,
-  "trackViewUrl":"https://apps.apple.com/kr/app/malang-cat/id6812345678?uo=4",
+  "trackViewUrl":"https://apps.apple.com/kr/app/meow-note/id6812345678?uo=4",
   "releaseNotes":"  사진을 메모 안에 넣을 수 있어요.  "
 }]}''';
     final r = AppUpdate.parseRelease(body)!;

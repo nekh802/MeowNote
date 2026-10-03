@@ -3,14 +3,14 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:malang_cat/data/memo_store.dart';
-import 'package:malang_cat/models/memo.dart';
+import 'package:meow_note/data/memo_store.dart';
+import 'package:meow_note/models/memo.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test("'소소한 행복'은 기본 그대로일 때만 위에 걸터앉는 자리로 옮기고, 직접 고른 자리는 지킨다", () async {
-    final directory = await Directory.systemTemp.createTemp('malang-seed-');
+    final directory = await Directory.systemTemp.createTemp('meow-seed-');
     const channel = MethodChannel('plugins.flutter.io/path_provider');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => directory.path);

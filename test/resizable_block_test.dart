@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:malang_cat/widgets/resizable_block.dart';
+import 'package:meow_note/widgets/resizable_block.dart';
 
 void main() {
   /// 저장소처럼, 알려 준 값을 받아 다시 그려 주는 화면.

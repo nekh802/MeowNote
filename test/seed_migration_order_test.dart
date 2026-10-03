@@ -3,13 +3,13 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:malang_cat/data/memo_store.dart';
+import 'package:meow_note/data/memo_store.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test("예전 판을 쓰던 기기는 '기분 좋은 시작'과 '하나씩 해볼까'의 차례를 맞바꾼다", () async {
-    final directory = await Directory.systemTemp.createTemp('malang-seed-');
+    final directory = await Directory.systemTemp.createTemp('meow-seed-');
     const channel = MethodChannel('plugins.flutter.io/path_provider');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async => directory.path);

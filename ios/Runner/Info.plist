@@ -15,7 +15,7 @@
 		<string>ja</string>
 	</array>
 	<key>CFBundleDisplayName</key>
-	<string>Meow Note</string>
+	<string>MeowNote</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,7 +23,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>malang_cat</string>
+	<string>MeowNote</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
