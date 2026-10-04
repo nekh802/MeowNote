@@ -195,11 +195,11 @@ String allBoardsAsText(
       StringBuffer(
           trLocale(
             locale,
-            'Cosmeow',
-            en: 'Cosmeow',
-            zh: 'Cosmeow',
-            fr: 'Cosmeow',
-            ja: 'Cosmeow',
+            'Cosmeow Note',
+            en: 'Cosmeow Note',
+            zh: 'Cosmeow Note',
+            fr: 'Cosmeow Note',
+            ja: 'Cosmeow Note',
           ),
         )
         ..write(
@@ -249,11 +249,11 @@ Future<bool> shareAllBoards(
       ),
       subject: trLocale(
         locale,
-        'Cosmeow',
-        en: 'Cosmeow',
-        zh: 'Cosmeow',
-        fr: 'Cosmeow',
-        ja: 'Cosmeow',
+        'Cosmeow Note',
+        en: 'Cosmeow Note',
+        zh: 'Cosmeow Note',
+        fr: 'Cosmeow Note',
+        ja: 'Cosmeow Note',
       ),
       files: sent.files.isEmpty ? null : sent.files,
       fileNameOverrides: sent.files.isEmpty ? null : sent.names,
