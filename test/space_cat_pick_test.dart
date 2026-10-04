@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:meow_note/widgets/cat_face.dart';
-import 'package:meow_note/widgets/original_artwork.dart';
+import 'package:cosmeow_note/widgets/cat_face.dart';
+import 'package:cosmeow_note/widgets/original_artwork.dart';
 
 void main() {
   test('CatSpec.spaceCats 는 오려 둔 우주 고양이 열여덟 마리와 정확히 같다', () {

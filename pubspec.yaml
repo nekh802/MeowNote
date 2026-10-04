@@ -1,5 +1,5 @@
-name: meow_note
-description: "Meow Note — 맥북과 아이폰에서 함께 쓰는 고양이 메모장"
+name: cosmeow_note
+description: "Cosmeow Note — 맥북과 아이폰에서 함께 쓰는 고양이 메모장"
 publish_to: 'none'
 
 # 빌드 번호(+N)는 스토어에 올릴 때마다 올린다.

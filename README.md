@@ -1,4 +1,4 @@
-# Meow Note
+# Cosmeow Note
 
 아이폰·Mac용 Flutter 메모 앱. 기본 화면은 `assets/malang1.png` 원본의 RGB 색상을 보존한 `assets/malang_reference_rgb.png`를 표시하고 좌표에 맞춘 터치 영역으로 실제 메모 작성과 체크리스트를 연결합니다. 모든 화면 크기에서 선택한 메모장 하나만 표시합니다. 위쪽 선택 버튼으로 여섯 메모장을 전환합니다.
 

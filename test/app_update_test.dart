@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:meow_note/data/app_update.dart';
+import 'package:cosmeow_note/data/app_update.dart';
 
 void main() {
   test('10 이 9 보다 새 판이다 — 글자 순서로 견주지 않는다', () {

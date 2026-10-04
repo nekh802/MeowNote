@@ -9,11 +9,11 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // 로컬 파일이 원본이므로, 첫 화면을 그리기 전에 한 번만 읽어 둔다.
   await MemoStore.instance.load();
-  runApp(const MallangMemoApp());
+  runApp(const CosmeowNoteApp());
 }
 
-class MallangMemoApp extends StatelessWidget {
-  const MallangMemoApp({super.key});
+class CosmeowNoteApp extends StatelessWidget {
+  const CosmeowNoteApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +28,7 @@ class MallangMemoApp extends StatelessWidget {
   Widget _buildApp(String? fontFamily) {
     const seed = Color(0xFFE9A0B4);
     return MaterialApp(
-      title: 'Meow Note',
+      title: 'Cosmeow Note',
       debugShowCheckedModeBanner: false,
       // 기기 언어를 그대로 따른다. 한국어·영어·중국어 밖의 언어는 Flutter 가
       // 첫 번째로 적어 둔 한국어로 내려온다.

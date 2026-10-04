@@ -43,14 +43,94 @@ class InlineAttachments extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final a in list)
-              Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 6),
-                child: a.isMedia
-                    ? _MediaBlock(key: ValueKey(a.id), attachment: a, ink: ink)
-                    : _FileCard(key: ValueKey(a.id), attachment: a, ink: ink),
+            for (var i = 0; i < list.length; i++)
+              _ReorderSlot(
+                key: ValueKey('slot-${list[i].id}'),
+                attachment: list[i],
+                next: i + 1 < list.length ? list[i + 1] : null,
+                entryId: entryId,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 6),
+                  child: list[i].isMedia
+                      ? _MediaBlock(
+                          key: ValueKey(list[i].id),
+                          attachment: list[i],
+                          ink: ink,
+                        )
+                      : _FileCard(
+                          key: ValueKey(list[i].id),
+                          attachment: list[i],
+                          ink: ink,
+                        ),
+                ),
               ),
           ],
+        );
+      },
+    );
+  }
+}
+
+/// 첨부 하나 위에 다른 첨부를 놓으면 그 앞(위쪽 절반)이나 뒤(아래쪽 절반)로
+/// 끼워 넣는다. 같은 줄 아래 여러 장의 차례를 바꾸는 자리다.
+class _ReorderSlot extends StatefulWidget {
+  const _ReorderSlot({
+    super.key,
+    required this.attachment,
+    required this.next,
+    required this.entryId,
+    required this.child,
+  });
+
+  final Attachment attachment;
+  final Attachment? next;
+  final String? entryId;
+  final Widget child;
+
+  @override
+  State<_ReorderSlot> createState() => _ReorderSlotState();
+}
+
+class _ReorderSlotState extends State<_ReorderSlot> {
+  bool _after = false;
+
+  /// 손가락이 이 칸의 아래쪽 절반에 있는지. 끄는 그림은 손가락이 한가운데다.
+  bool _isLowerHalf(DragTargetDetails<Attachment> d) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox) return false;
+    return box.globalToLocal(d.offset + const Offset(56, 56)).dy >
+        box.size.height / 2;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return DragTarget<Attachment>(
+      hitTestBehavior: HitTestBehavior.translucent,
+      onWillAcceptWithDetails: (d) =>
+          d.data.boardId == widget.attachment.boardId &&
+          !identical(d.data, widget.attachment),
+      onMove: (d) {
+        final after = _isLowerHalf(d);
+        if (after != _after) setState(() => _after = after);
+      },
+      onAcceptWithDetails: (d) => MemoStore.instance.moveAttachment(
+        d.data,
+        widget.entryId,
+        before: _isLowerHalf(d) ? widget.next : widget.attachment,
+      ),
+      builder: (context, candidate, _) {
+        final line = BorderSide(width: 4, color: primary);
+        final active = candidate.isNotEmpty;
+        return DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: BoxDecoration(
+            border: Border(
+              top: active && !_after ? line : BorderSide.none,
+              bottom: active && _after ? line : BorderSide.none,
+            ),
+          ),
+          child: widget.child,
         );
       },
     );
@@ -202,14 +282,17 @@ class AttachmentDropZone extends StatelessWidget {
   Widget build(BuildContext context) => DragTarget<Attachment>(
     hitTestBehavior: HitTestBehavior.opaque,
     onWillAcceptWithDetails: (d) => d.data.boardId == boardId,
-    onAcceptWithDetails: (d) =>
-        MemoStore.instance.moveAttachment(d.data, entryId),
+    onAcceptWithDetails: (d) {
+      // 이미 이 줄 아래에 있으면 그대로 둔다. 차례는 사진 위에 놓아 바꾼다.
+      if (d.data.afterEntryId == entryId) return;
+      MemoStore.instance.moveAttachment(d.data, entryId);
+    },
     builder: (context, candidate, _) => DecoratedBox(
       // 놓일 자리에는 아래쪽에 가는 줄을 그어 알린다.
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            width: 2,
+            width: 4,
             color: candidate.isEmpty
                 ? Colors.transparent
                 : Theme.of(context).colorScheme.primary,
@@ -246,13 +329,13 @@ class _MediaBlockState extends State<_MediaBlock> {
       final scrollable = Scrollable.maybeOf(context, axis: Axis.vertical);
       final box = scrollable?.context.findRenderObject();
       if (scrollable == null || box is! RenderBox) return;
-      const edge = 80.0;
+      const edge = 120.0;
       final y = box.globalToLocal(finger).dy;
       final double step;
       if (y < edge) {
-        step = -(edge - y) / edge * 14;
+        step = -(edge - y) / edge * 20;
       } else if (y > box.size.height - edge) {
-        step = (y - (box.size.height - edge)) / edge * 14;
+        step = (y - (box.size.height - edge)) / edge * 20;
       } else {
         return;
       }
@@ -314,50 +397,71 @@ class _MediaBlockState extends State<_MediaBlock> {
             ],
           ),
         );
+        const tile = 112.0;
+        final primary = Theme.of(context).colorScheme.primary;
         return LongPressDraggable<Attachment>(
           data: attachment,
+          // 기본 0.5초는 답답해서 조금 줄인다. 스크롤과는 여전히 구분된다.
+          delay: const Duration(milliseconds: 300),
+          // 큰 사진을 통째로 들면 손가락 밑이 가려져 놓을 자리가 안 보인다.
+          // 작은 타일을 손가락 한가운데에 쥐고 다닌다.
+          dragAnchorStrategy: (_, _, _) => const Offset(tile / 2, tile / 2),
           onDragStarted: () {
             HapticFeedback.mediumImpact();
             _startAutoScroll();
           },
           onDragUpdate: (d) => _finger = d.globalPosition,
           onDragEnd: (_) => _stopAutoScroll(),
-          // 손가락 밑에 작게 비친 그림을 들고 다닌다. 동영상은 다시 풀지
-          // 않고 어두운 판으로 갈음한다.
           feedback: Material(
             color: Colors.transparent,
-            child: Opacity(
-              opacity: .8,
-              child: SizedBox(
-                width: width,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: attachment.kind == 'image'
-                      ? Image.file(
-                          store.attachmentFile(attachment),
-                          width: width,
-                          fit: BoxFit.fitWidth,
-                          cacheWidth:
-                              (width * MediaQuery.devicePixelRatioOf(context))
-                                  .round(),
-                          errorBuilder: (_, _, _) =>
-                              _Missing(width: width, ink: ink),
-                        )
-                      : Container(
-                          width: width,
-                          height: width * 9 / 16,
-                          color: Colors.black87,
-                          child: const Icon(
-                            Icons.play_arrow_rounded,
-                            color: Colors.white,
-                            size: 40,
-                          ),
+            elevation: 0,
+            child: Container(
+              width: tile,
+              height: tile,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: primary, width: 2),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x44000000),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: attachment.kind == 'image'
+                    ? Image.file(
+                        store.attachmentFile(attachment),
+                        fit: BoxFit.cover,
+                        cacheWidth:
+                            (tile * MediaQuery.devicePixelRatioOf(context))
+                                .round(),
+                        errorBuilder: (_, _, _) =>
+                            _Missing(width: tile, ink: ink),
+                      )
+                    : const ColoredBox(
+                        color: Colors.black87,
+                        child: Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 40,
                         ),
-                ),
+                      ),
               ),
             ),
           ),
-          childWhenDragging: Opacity(opacity: .3, child: body),
+          // 들고 있는 동안 원래 자리는 얇게 접어, 위아래 줄이 가까워져
+          // 멀리 끌고 갈 필요가 없게 한다.
+          childWhenDragging: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: primary.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: primary.withValues(alpha: .35)),
+            ),
+          ),
           child: body,
         );
       },

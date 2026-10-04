@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:meow_note/data/memo_store.dart';
-import 'package:meow_note/data/share_text.dart';
-import 'package:meow_note/models/attachment.dart';
-import 'package:meow_note/models/memo.dart';
+import 'package:cosmeow_note/data/memo_store.dart';
+import 'package:cosmeow_note/data/share_text.dart';
+import 'package:cosmeow_note/models/attachment.dart';
+import 'package:cosmeow_note/models/memo.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

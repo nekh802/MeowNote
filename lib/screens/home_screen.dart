@@ -363,11 +363,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         content: Text(
           tr(
             context,
-            '앱스토어에서 Meow Note를 최신 버전으로 업데이트 해주세요.',
-            en: 'Please update Meow Note to the latest version on the App Store.',
-            zh: '请在 App Store 中将 Meow Note 更新到最新版本。',
-            fr: "Veuillez mettre à jour Meow Note vers la dernière version sur l'App Store.",
-            ja: 'App Store で Meow Note を最新バージョンにアップデートしてください。',
+            '앱스토어에서 Cosmeow를 최신 버전으로 업데이트 해주세요.',
+            en: 'Please update Cosmeow to the latest version on the App Store.',
+            zh: '请在 App Store 中将 Cosmeow 更新到最新版本。',
+            fr: "Veuillez mettre à jour Cosmeow vers la dernière version sur l'App Store.",
+            ja: 'App Store で Cosmeow を最新バージョンにアップデートしてください。',
           ),
           style: _hand(15, ink),
         ),
@@ -644,11 +644,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         subtitle: Text(
                           tr(
                             context,
-                            'Meow Note · 오늘의 기분',
-                            en: "Meow Note · Today's Mood",
-                            zh: 'Meow Note · 今日心情',
-                            fr: 'Meow Note · Humeur du jour',
-                            ja: 'Meow Note · 今日の気分',
+                            'Cosmeow · 오늘의 기분',
+                            en: "Cosmeow · Today's Mood",
+                            zh: 'Cosmeow · 今日心情',
+                            fr: 'Cosmeow · Humeur du jour',
+                            ja: 'Cosmeow · 今日の気分',
                           ),
                           style: TextStyle(
                             fontFamily: option.key == 'system'
@@ -1375,11 +1375,11 @@ class _PickerBox extends StatelessWidget {
                 // 아래 블록의 체크 표시가 알려 준다.
                 tr(
                   context,
-                  'Meow Note',
-                  en: 'Meow Note',
-                  zh: 'Meow Note',
-                  fr: 'Meow Note',
-                  ja: 'Meow Note',
+                  'Cosmeow Note',
+                  en: 'Cosmeow Note',
+                  zh: 'Cosmeow Note',
+                  fr: 'Cosmeow Note',
+                  ja: 'Cosmeow Note',
                 ),
                 style: _round(
                   _listSize(MemoStore.instance.fontKey == 'gamja' ? 19 : 18),

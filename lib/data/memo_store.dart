@@ -745,12 +745,22 @@ class MemoStore extends ChangeNotifier {
 
   /// 첨부를 끌어다 다른 줄 아래([afterEntryId])나 글 맨 끝(null)에 놓는다.
   /// 그 자리에 먼저 있던 첨부들 뒤에 붙도록 목록 끝으로 옮긴다.
-  void moveAttachment(Attachment attachment, String? afterEntryId) {
-    if (attachment.afterEntryId == afterEntryId) return;
+  ///
+  /// [before] 를 주면 그 첨부 바로 앞에 끼워 넣어, 같은 줄 안에서 차례도 바꾼다.
+  void moveAttachment(
+    Attachment attachment,
+    String? afterEntryId, {
+    Attachment? before,
+  }) {
+    if (identical(before, attachment)) return;
     attachment.afterEntryId = afterEntryId;
-    _attachments
-      ..remove(attachment)
-      ..add(attachment);
+    _attachments.remove(attachment);
+    final at = before == null ? -1 : _attachments.indexOf(before);
+    if (at < 0) {
+      _attachments.add(attachment);
+    } else {
+      _attachments.insert(at, attachment);
+    }
     _bump(attachment.boardId);
   }
 
